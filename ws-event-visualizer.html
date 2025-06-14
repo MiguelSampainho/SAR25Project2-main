@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Event Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .event-log {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        .event {
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .user-login {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196F3;
+        }
+        .user-logout {
+            background-color: #ffebee;
+            border-left: 4px solid #F44336;
+        }
+        .time {
+            color: #666;
+            font-size: 0.8em;
+        }
+        .user {
+            font-weight: bold;
+        }
+        .location {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .instructions {
+            background-color: #fff8e1;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket Event Visualizer</h1>
+        
+        <div class="instructions">
+            <h3>How to use:</h3>
+            <ol>
+                <li>Open this page in one browser window</li>
+                <li>Open the auction application in another window and log in</li>
+                <li>Watch for user login/logout events to appear here</li>
+                <li>Log in and out with different users to test the functionality</li>
+            </ol>
+        </div>
+        
+        <h2>Real-time Events:</h2>
+        <div id="event-log" class="event-log">
+            <div class="event">Waiting for WebSocket events...</div>
+        </div>
+        
+        <h2>Connection Status:</h2>
+        <div id="connection-status">Not connected</div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+    <script>
+        const eventLog = document.getElementById('event-log');
+        const connectionStatus = document.getElementById('connection-status');
+        
+        // Function to add an event to the log
+        function addEvent(type, data) {
+            const event = document.createElement('div');
+            event.className = `event ${type}`;
+            
+            const time = document.createElement('div');
+            time.className = 'time';
+            time.textContent = new Date().toLocaleTimeString();
+            event.appendChild(time);
+            
+            const content = document.createElement('div');
+            
+            if (type === 'user-login') {
+                content.innerHTML = `<span class="user">${data.username}</span> logged in`;
+                if (data.latitude && data.longitude) {
+                    const location = document.createElement('div');
+                    location.className = 'location';
+                    location.textContent = `Location: ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`;
+                    content.appendChild(location);
+                }
+            } else if (type === 'user-logout') {
+                content.innerHTML = `<span class="user">${data.username}</span> logged out`;
+            }
+            
+            event.appendChild(content);
+            eventLog.appendChild(event);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+        
+        // Ask user for JWT token
+        const token = prompt('Enter your JWT token to connect to WebSocket:');
+        
+        if (token) {
+            // Connect to WebSocket with the token
+            const socket = io('https://localhost:3043', {
+                query: { token },
+                transports: ['websocket'],
+                rejectUnauthorized: false
+            });
+            
+            // Connection events
+            socket.on('connect', () => {
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.style.color = 'green';
+                addEvent('user-login', { username: 'YOU' });
+            });
+            
+            socket.on('connect_error', (error) => {
+                connectionStatus.textContent = `Connection error: ${error.message}`;
+                connectionStatus.style.color = 'red';
+            });
+            
+            socket.on('disconnect', () => {
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.style.color = 'red';
+            });
+            
+            // Listen for user events
+            socket.on('new:user', (data) => {
+                addEvent('user-login', data);
+            });
+            
+            socket.on('user:left', (data) => {
+                addEvent('user-logout', data);
+            });
+        } else {
+            connectionStatus.textContent = 'No token provided';
+            connectionStatus.style.color = 'red';
+        }
+    </script>
+</body>
+</html>

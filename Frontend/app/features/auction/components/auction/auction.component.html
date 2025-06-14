@@ -1,0 +1,236 @@
+<mat-toolbar color="primary" class="elevated-toolbar">
+  <button mat-icon-button (click)="sidenav.toggle()">
+    <mat-icon>menu</mat-icon>
+  </button>
+  <span class="toolbar-title">Auction System</span>
+  <div class="toolbar-spacer"></div>
+  <div class="toolbar-container">
+    <button mat-button routerLink="/insertitem">
+      <mat-icon>add_shopping_cart</mat-icon>
+      Insert Item
+    </button>
+    <button mat-button (click)="logout()">
+      <mat-icon>logout</mat-icon>
+      Log out
+    </button> 
+  </div>
+</mat-toolbar>
+
+<mat-sidenav-container class="navigation_bar">
+  <mat-sidenav #sidenav mode="over" class="sidenav-panel">
+    <div class="sidenav-header">
+      <mat-icon class="sidenav-icon">storefront</mat-icon>
+      <span>Auction System</span>
+    </div>
+    <mat-divider></mat-divider>
+    <div class="sidenav-content">
+      <button mat-button routerLink="/insertitem">
+        <mat-icon>add_shopping_cart</mat-icon>
+        <span>Insert Item</span>
+      </button>
+      <button mat-button (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Log out</span>
+      </button> 
+    </div>
+  </mat-sidenav>
+  <mat-sidenav-content>
+    <main class="main-content">
+      <div class="main-container">
+        <div class="top-container">
+          <!-- Items Table Panel -->
+          <mat-card class="table-panel mat-elevation-z3">
+            <mat-card-header>
+              <mat-card-title>
+                <mat-icon>store</mat-icon>
+                Available Items
+              </mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="table-container">
+              <table mat-table [dataSource]="items" class="items-table">
+                <!-- Description Column -->
+                <ng-container matColumnDef="description">
+                  <th mat-header-cell *matHeaderCellDef>Description</th>
+                  <td mat-cell *matCellDef="let item"> {{item.description}} </td>
+                </ng-container>
+
+                <!-- Current Bid Column -->
+                <ng-container matColumnDef="currentbid">
+                  <th mat-header-cell *matHeaderCellDef>Current bid</th>
+                  <td mat-cell *matCellDef="let item" class="price-cell">
+                    <mat-chip-option color="primary" selected>{{item.currentbid | currency}}</mat-chip-option>
+                  </td>
+                </ng-container>
+
+                <!-- Buy now Column -->
+                <ng-container matColumnDef="buynow">
+                  <th mat-header-cell *matHeaderCellDef>Buy Now</th>
+                  <td mat-cell *matCellDef="let item" class="price-cell">
+                    <mat-chip-option color="accent" selected>{{item.buynow | currency}}</mat-chip-option>
+                  </td>
+                </ng-container>
+
+                <!-- Remaining time Column -->
+                <ng-container matColumnDef="remainingtime">
+                  <th mat-header-cell *matHeaderCellDef>Remaining Time</th>
+                  <td mat-cell *matCellDef="let item">
+                    <mat-progress-bar mode="determinate" [value]="getTimeProgress(item)" 
+                      [color]="getTimeProgressColor(item)"></mat-progress-bar>
+                    <span class="time-text">{{formatRemainingTime(item.remainingtime)}}</span>
+                  </td>
+                </ng-container>
+
+                <!-- Wining user Column -->
+                <ng-container matColumnDef="wininguser">
+                  <th mat-header-cell *matHeaderCellDef>Winning User</th>
+                  <td mat-cell *matCellDef="let item">
+                    <span class="winner-name">
+                      <mat-icon *ngIf="item.wininguser">emoji_events</mat-icon>
+                      {{item.wininguser}}
+                    </span>
+                  </td>
+                </ng-container>
+
+                <!-- Owner user Column -->
+                <ng-container matColumnDef="owner">
+                  <th mat-header-cell *matHeaderCellDef>Owner</th>
+                  <td mat-cell *matCellDef="let item">
+                    <span class="owner-name">
+                      <mat-icon>person</mat-icon>
+                      {{item.owner}}
+                    </span>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns" 
+                    (click)="onRowClicked(row)"
+                    class="item-row"
+                    [class.selected-row]="selectedItem && row.id === selectedItem.id">
+                </tr>
+              </table>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Info Board Panel -->
+          <mat-card class="info-panel mat-elevation-z3">
+            <mat-card-header>
+              <mat-card-title>
+                <mat-icon>info</mat-icon>
+                Info Board
+              </mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="auctioninfo-container">
+              <mat-list class="auctioninfo-pane">
+                <mat-list-item *ngFor="let text_log of soldHistory">
+                  <mat-icon mat-list-icon color="accent">info</mat-icon>  
+                  <div mat-line class="info-message">{{ text_log }}</div>
+                  <mat-divider></mat-divider>
+                </mat-list-item>  
+              </mat-list>  
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Map Panel -->
+          <mat-card class="map-panel mat-elevation-z3">
+            <mat-card-header>
+              <mat-card-title>
+                <mat-icon>location_on</mat-icon>
+                Item Location
+              </mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="map-container">
+              <google-map [width]="350" [height]="250" [options]="mapOptions">
+                <map-marker *ngFor="let marker of markers" [position]="marker.position" [label]="marker.label">
+                </map-marker>
+              </google-map>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="bottom-container">
+          <!-- Bidding Panel -->
+          <mat-card class="bid-panel mat-elevation-z3" *ngIf="showBid">
+            <mat-card-header>
+              <mat-card-title>
+                <mat-icon>gavel</mat-icon>
+                Place Your Bid
+              </mat-card-title>
+              <mat-card-subtitle *ngIf="selectedItem">For: {{selectedItem.description}}</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="form-container">
+                <form [formGroup]="bidForm" (submit)="submit()">
+                  <div class="bid-form-content">
+                    <mat-form-field class="form-field" appearance="outline">
+                      <mat-label>Enter Your Bid Amount</mat-label>
+                      <input matInput formControlName="bid" required type="number">
+                      <mat-icon matPrefix>paid</mat-icon>
+                      <span matSuffix>$</span>
+                      <mat-hint *ngIf="selectedItem">Current bid: {{selectedItem.currentbid | currency}}</mat-hint>
+                      <mat-error *ngIf="bidForm.controls.bid.touched && bidForm.controls.bid.invalid">
+                        <span *ngIf="bidForm.controls.bid.errors?.required">This field is mandatory.</span>
+                        <span *ngIf="bidForm.controls.bid.errors?.pattern">This must be a positive number.</span>
+                      </mat-error>
+                    </mat-form-field>
+                    
+                    <div class="buttons-container">    
+                      <button mat-raised-button color="primary" [disabled]="!bidForm.valid" type="submit">
+                        <mat-icon>gavel</mat-icon>
+                        Submit Bid
+                      </button> 
+                      <button mat-stroked-button color="warn" type="button" (click)="cancelBid()">
+                        <mat-icon>cancel</mat-icon>
+                        Cancel
+                      </button>
+                      <button mat-raised-button color="accent" type="button" (click)="buyNow()">
+                        <mat-icon>shopping_cart</mat-icon>
+                        Buy Now
+                      </button>
+                      <button mat-raised-button color="warn" type="button" (click)="removeItem()" *ngIf="showRemove">
+                        <mat-icon>delete</mat-icon>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Chat Panel -->
+          <mat-card class="chat-panel mat-elevation-z3" *ngIf="showMessage">
+            <mat-card-header>
+              <mat-card-title>
+                <mat-icon>chat</mat-icon>
+                Chat Messages
+              </mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="message-container">
+              <div class="scrollable">
+                <mat-list class="chat-list">
+                  <mat-list-item *ngFor="let chat of chats" (click)="onMessageSender(chat)" class="chat-item">
+                    <mat-icon mat-list-icon>person</mat-icon>
+                    <div mat-line class="chat-sender">{{ chat.sender }}</div>
+                    <div mat-line class="chat-message">{{ chat.message }}</div>
+                    <mat-divider></mat-divider>
+                  </mat-list-item>
+                </mat-list>
+              </div>    
+              <div class="sendmessage-container" *ngIf="showMessage">
+                <mat-form-field class="message-input" appearance="outline">
+                  <mat-label>Message to {{destination}}</mat-label>
+                  <textarea class="messagearea" matInput rows="2" [(ngModel)]="ChatMessage"></textarea>
+                  <mat-icon matPrefix>message</mat-icon>
+                </mat-form-field>
+                <button class="send-button" mat-fab color="primary" (click)="sendMessage()">
+                  <mat-icon>send</mat-icon>
+                </button>
+              </div>  
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

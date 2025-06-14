@@ -1,0 +1,272 @@
+.main-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    justify-content: center;
+}
+
+.top-container {
+    display: grid;
+    grid-template-columns: 3fr 1fr 1fr;
+    gap: 24px;
+    justify-content: flex-start;
+    padding: 20px;
+}
+
+.table-container {
+    flex-grow: 2;
+    padding: 20px;
+    max-height: 400px;
+    overflow: auto;
+}
+
+.auctioninfo-container {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 2;
+    max-height: 400px;
+    overflow: auto;
+}
+
+.bottom-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+}
+
+.form-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px;
+}
+
+.buttons-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.message-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.sendmessage-container {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.scrollable {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 300px;
+}
+
+.messagearea {
+    overflow-y: scroll;
+}
+
+.small-button {
+    width: 60px;
+    height: 30px;
+}
+
+.elevated-toolbar {
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.toolbar-title {
+    margin-left: 16px;
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.toolbar-spacer {
+    flex: 1 1 auto;
+}
+
+.toolbar-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidenav-panel {
+    width: 250px;
+}
+
+.sidenav-header {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 20px;
+    font-weight: 500;
+    background-color: #f5f5f5;
+}
+
+.sidenav-icon {
+    margin-right: 12px;
+}
+
+.sidenav-content {
+    padding: 16px 0;
+}
+
+.sidenav-content button {
+    width: 100%;
+    text-align: left;
+    padding: 8px 16px;
+    height: 48px;
+}
+
+.sidenav-content button mat-icon {
+    margin-right: 12px;
+}
+
+.main-content {
+    padding: 24px;
+    min-height: calc(100vh - 64px);
+    background-color: #f5f5f5;
+}
+
+.table-panel,
+.info-panel,
+.map-panel,
+.bid-panel,
+.chat-panel {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.items-table {
+    width: 100%;
+}
+
+.price-cell {
+    text-align: right;
+}
+
+.item-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.item-row:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.selected-row {
+    background-color: rgba(63, 81, 181, 0.1) !important;
+}
+
+.time-text {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.6);
+    margin-top: 4px;
+    display: block;
+}
+
+.winner-name,
+.owner-name {
+    display: flex;
+    align-items: center;
+}
+
+.winner-name mat-icon,
+.owner-name mat-icon {
+    margin-right: 8px;
+    font-size: 18px;
+    height: 18px;
+    width: 18px;
+}
+
+.auctioninfo-pane {
+    padding: 0;
+}
+
+.info-message {
+    margin: 0;
+    padding: 8px 0;
+    font-size: 14px;
+}
+
+.map-container {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.bid-form-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-field {
+    width: 100%;
+}
+
+.chat-list {
+    padding: 0;
+}
+
+.chat-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.chat-item:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.chat-sender {
+    font-weight: 500;
+}
+
+.chat-message {
+    color: rgba(0, 0, 0, 0.7);
+}
+
+.message-input {
+    flex: 1;
+}
+
+.send-button {
+    min-width: 0;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+}
+
+@media (max-width: 1200px) {
+    .top-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .main-content {
+        padding: 16px;
+    }
+
+    .bottom-container {
+        grid-template-columns: 1fr;
+    }
+
+    .buttons-container {
+        flex-direction: column;
+    }
+}
+
+
+
+

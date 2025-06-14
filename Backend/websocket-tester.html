@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAR Auction WebSocket Tester</title>
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { display: flex; flex-direction: column; gap: 20px; max-width: 900px; margin: 0 auto; }
+        .card { border: 1px solid #ccc; border-radius: 5px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .flex { display: flex; gap: 10px; }
+        input, button { padding: 8px; }
+        button { cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #45a049; }
+        .log-container { height: 300px; overflow-y: scroll; background: #f5f5f5; padding: 10px; border-radius: 4px; font-family: monospace; }
+        .tab-container { display: flex; }
+        .tab { padding: 10px 20px; cursor: pointer; background: #eee; }
+        .tab.active { background: #ddd; font-weight: bold; }
+        .tab-content { display: none; padding: 20px; border: 1px solid #ddd; }
+        .tab-content.active { display: block; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SAR Auction WebSocket Tester</h1>
+        
+        <div class="card">
+            <h2>1. User Authentication</h2>
+            <div class="tab-container">
+                <div class="tab active" data-tab="login">Login</div>
+                <div class="tab" data-tab="register">Register</div>
+            </div>
+            
+            <div class="tab-content active" id="login">
+                <div class="flex">
+                    <input id="login-username" placeholder="Username" />
+                    <input id="login-password" type="password" placeholder="Password" />
+                    <button id="login-button">Login</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="register">
+                <div class="flex" style="flex-wrap: wrap;">
+                    <input id="reg-name" placeholder="Full Name" />
+                    <input id="reg-email" placeholder="Email" />
+                    <input id="reg-username" placeholder="Username" />
+                    <input id="reg-password" type="password" placeholder="Password" />
+                    <button id="register-button">Register</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>2. WebSocket Connection</h2>
+            <div>
+                <p>JWT Token: <span id="jwt-display">Not authenticated</span></p>
+                <button id="connect-ws" disabled>Connect WebSocket</button>
+                <button id="disconnect-ws" disabled>Disconnect</button>
+                <button id="logout-button" disabled>Logout</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>3. API Tests</h2>
+            <div class="flex">
+                <button id="get-users">Get Users</button>
+                <button id="get-items">Get Items</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>4. Event Log</h2>
+            <div class="log-container" id="event-log"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let socket;
+        let jwt = '';
+        let currentUsername = '';
+        
+        // DOM elements
+        const eventLog = document.getElementById('event-log');
+        const jwtDisplay = document.getElementById('jwt-display');
+        const connectButton = document.getElementById('connect-ws');
+        const disconnectButton = document.getElementById('disconnect-ws');
+        const logoutButton = document.getElementById('logout-button');
+        
+        // Tab functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab
+                tab.classList.add('active');
+                
+                // Show corresponding content
+                const tabId = tab.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // Logging function
+        function log(message, type = 'normal') {
+            const timestamp = new Date().toISOString();
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `${timestamp}: ${message}`;
+            eventLog.appendChild(entry);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+        
+        // Authentication functions
+        document.getElementById('login-button').addEventListener('click', async () => {
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            
+            if (!username || !password) {
+                log('Username and password are required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://localhost:3043/api/authenticate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    jwt = data.token;
+                    currentUsername = data.username;
+                    jwtDisplay.textContent = jwt.substring(0, 20) + '...';
+                    connectButton.disabled = false;
+                    logoutButton.disabled = false;
+                    log(`Logged in as ${currentUsername}`, 'success');
+                } else {
+                    log(`Login failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Error during login: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('register-button').addEventListener('click', async () => {
+            const name = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+            const username = document.getElementById('reg-username').value;
+            const password = document.getElementById('reg-password').value;
+            
+            if (!name || !email || !username || !password) {
+                log('All fields are required for registration', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://localhost:3043/api/newuser', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`User ${username} registered successfully`, 'success');
+                    // Switch to login tab
+                    document.querySelector('[data-tab="login"]').click();
+                    // Pre-fill login fields
+                    document.getElementById('login-username').value = username;
+                    document.getElementById('login-password').value = password;
+                } else {
+                    log(`Registration failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Error during registration: ${error.message}`, 'error');
+            }
+        });
+        
+        // WebSocket connection
+        document.getElementById('connect-ws').addEventListener('click', () => {
+            if (!jwt) {
+                log('Please login first', 'error');
+                return;
+            }
+            
+            // Initialize Socket.IO connection with JWT token
+            socket = io('https://localhost:3043', {
+                query: { token: jwt },
+                transports: ['websocket'],
+                rejectUnauthorized: false // For self-signed certificate
+            });
+            
+            // Connection events
+            socket.on('connect', () => {
+                log('WebSocket connected', 'success');
+                disconnectButton.disabled = false;
+                connectButton.disabled = true;
+                
+                // Notify server about new user (optional - already handled by authentication)
+                socket.emit('newUser:username', { username: currentUsername });
+            });
+            
+            socket.on('connect_error', (error) => {
+                log(`WebSocket connection error: ${error.message}`, 'error');
+            });
+            
+            socket.on('disconnect', () => {
+                log('WebSocket disconnected', 'info');
+                disconnectButton.disabled = true;
+                connectButton.disabled = false;
+            });
+            
+            // Application-specific events
+            socket.on('new:user', (data) => {
+                log(`New user logged in: ${JSON.stringify(data)}`, 'info');
+            });
+            
+            socket.on('user:left', (data) => {
+                log(`User logged out: ${JSON.stringify(data)}`, 'info');
+            });
+            
+            socket.on('items:update', (items) => {
+                log(`Items updated: ${items.length} items received`, 'info');
+            });
+            
+            // General event listener
+            socket.onAny((eventName, ...args) => {
+                if (!['new:user', 'user:left', 'items:update'].includes(eventName)) {
+                    log(`Event received: ${eventName} - Data: ${JSON.stringify(args)}`, 'info');
+                }
+            });
+        });
+        
+        // Disconnect WebSocket
+        document.getElementById('disconnect-ws').addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+                log('WebSocket manually disconnected', 'info');
+                disconnectButton.disabled = true;
+                connectButton.disabled = false;
+            }
+        });
+        
+        // Logout
+        document.getElementById('logout-button').addEventListener('click', async () => {
+            if (!jwt || !currentUsername) {
+                log('Not logged in', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://localhost:3043/api/logout', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${jwt}`
+                    },
+                    body: JSON.stringify({ username: currentUsername })
+                });
+                
+                if (response.ok) {
+                    log(`Logged out successfully`, 'success');
+                    
+                    // Disconnect WebSocket if connected
+                    if (socket && socket.connected) {
+                        socket.disconnect();
+                    }
+                    
+                    // Reset UI state
+                    jwt = '';
+                    currentUsername = '';
+                    jwtDisplay.textContent = 'Not authenticated';
+                    connectButton.disabled = true;
+                    disconnectButton.disabled = true;
+                    logoutButton.disabled = true;
+                } else {
+                    const data = await response.json();
+                    log(`Logout failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Error during logout: ${error.message}`, 'error');
+            }
+        });
+        
+        // API test functions
+        document.getElementById('get-users').addEventListener('click', async () => {
+            if (!jwt) {
+                log('Please login first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://localhost:3043/api/users', {
+                    headers: { 'Authorization': `Bearer ${jwt}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`Received ${data.length} users: ${JSON.stringify(data)}`, 'info');
+                } else {
+                    log(`Failed to get users: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Error getting users: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('get-items').addEventListener('click', async () => {
+            if (!jwt) {
+                log('Please login first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://localhost:3043/api/items', {
+                    headers: { 'Authorization': `Bearer ${jwt}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`Received ${data.length} items: ${JSON.stringify(data)}`, 'info');
+                } else {
+                    log(`Failed to get items: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Error getting items: ${error.message}`, 'error');
+            }
+        });
+        
+        // Initial log
+        log('WebSocket Test Client loaded', 'info');
+    </script>
+</body>
+</html>

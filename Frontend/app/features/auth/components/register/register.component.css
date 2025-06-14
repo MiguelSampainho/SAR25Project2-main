@@ -1,0 +1,188 @@
+mat-sidenav-container, mat-sidenav-content, mat-sidenav {
+  height: 100%;
+}
+
+mat-sidenav {
+  width: 250px;
+}
+
+a {
+  text-decoration: none;
+  color: white;
+}
+
+a:hover,
+a:active {
+  color: lightgray;
+}
+
+.error{
+  color: red;
+}
+
+.navigation-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.label {
+  display: inline-block;
+  line-height: 30px;
+  margin: 5;
+  padding-left:10px;
+  width: 85%;
+}
+
+.form-mat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100%;
+  padding: 24px;
+  border-radius: 8px;
+}
+
+.form-field {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  margin-top: 16px;
+}
+
+.buttons-container {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.submit-buttonn,
+.clear-button {
+  margin: 0 10px;
+}
+
+.submit-button, .clear-button {
+  flex: 1;
+  min-width: 120px;
+}
+
+.error-container{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.elevated-toolbar {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.toolbar-title {
+  margin-left: 16px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.toolbar-container {
+  display: flex;
+  align-items: center;
+}
+
+.sidenav-panel {
+  width: 250px;
+}
+
+.sidenav-header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 20px;
+  font-weight: 500;
+  background-color: #f5f5f5;
+}
+
+.sidenav-icon {
+  margin-right: 12px;
+}
+
+.sidenav-content {
+  padding: 16px 0;
+}
+
+.sidenav-content button {
+  width: 100%;
+  text-align: left;
+  padding: 8px 16px;
+  height: 48px;
+}
+
+.sidenav-content button mat-icon {
+  margin-right: 12px;
+}
+
+.main-content {
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  min-height: calc(100vh - 64px);
+  background-color: #f5f5f5;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.header-icon {
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.error-card {
+  margin-top: 16px;
+  background-color: #ffebee;
+  border-left: 4px solid #f44336;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  color: #f44336;
+}
+
+.error mat-icon {
+  margin-right: 8px;
+}
+
+@media (max-width: 600px) {
+  .main-content {
+    padding: 16px;
+  }
+  
+  .buttons-container {
+    flex-direction: column;
+  }
+  
+  .submit-button, .clear-button {
+    width: 100%;
+  }
+}

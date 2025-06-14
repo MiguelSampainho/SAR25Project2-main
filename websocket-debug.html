@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+        .event { margin: 5px 0; padding: 5px; border-radius: 4px; }
+        .connect { background-color: #d4edda; }
+        .disconnect { background-color: #f8d7da; }
+        .message { background-color: #cce5ff; }
+        button { margin: 5px; padding: 8px 15px; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Debug Test</h1>
+    
+    <div>
+        <h3>Connection</h3>
+        <input type="text" id="token" placeholder="JWT Token" style="width: 300px;">
+        <button id="connect">Connect</button>
+        <button id="disconnect">Disconnect</button>
+        <div id="status">Not connected</div>
+    </div>
+    
+    <div>
+        <h3>Event Log</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+    <script>
+        const logElement = document.getElementById('log');
+        const tokenInput = document.getElementById('token');
+        const statusElement = document.getElementById('status');
+        let socket;
+
+        function log(message, type = 'message') {
+            const entry = document.createElement('div');
+            entry.className = `event ${type}`;
+            entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        document.getElementById('connect').addEventListener('click', function() {
+            const token = tokenInput.value;
+            
+            if (!token) {
+                log('No token provided', 'disconnect');
+                return;
+            }
+
+            // Create socket.io connection
+            try {
+                socket = io('https://localhost:3043', {
+                    query: { token },
+                    transports: ['websocket'],
+                    rejectUnauthorized: false
+                });
+
+                socket.on('connect', function() {
+                    log('Connected to server', 'connect');
+                    statusElement.textContent = 'Connected';
+                    statusElement.style.color = 'green';
+                    
+                    // Attach event listeners for all events
+                    socket.onAny((eventName, ...args) => {
+                        log(`Event received: ${eventName} - ${JSON.stringify(args)}`);
+                    });
+                    
+                    // Specific event listeners
+                    socket.on('new:user', function(data) {
+                        log(`New user logged in: ${JSON.stringify(data)}`);
+                    });
+                    
+                    socket.on('user:left', function(data) {
+                        log(`User logged out: ${JSON.stringify(data)}`);
+                    });
+                });
+                
+                socket.on('connect_error', function(err) {
+                    log(`Connection error: ${err.message}`, 'disconnect');
+                    statusElement.textContent = 'Connection error';
+                    statusElement.style.color = 'red';
+                });
+                
+                socket.on('disconnect', function(reason) {
+                    log(`Disconnected: ${reason}`, 'disconnect');
+                    statusElement.textContent = 'Disconnected';
+                    statusElement.style.color = 'red';
+                });
+            } catch (err) {
+                log(`Error creating socket: ${err.message}`, 'disconnect');
+            }
+        });
+        
+        document.getElementById('disconnect').addEventListener('click', function() {
+            if (socket) {
+                socket.disconnect();
+                log('Manually disconnected', 'disconnect');
+                statusElement.textContent = 'Disconnected';
+                statusElement.style.color = 'red';
+            }
+        });
+    </script>
+</body>
+</html>
