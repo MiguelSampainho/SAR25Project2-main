@@ -101,13 +101,13 @@ class SocketService {
           
           console.log(`Bid accepted: ${username} bid ${bid} on item ${item_id}`);
           
-          // Broadcast the updated item to all clients
-          this.broadcastItemUpdate(item);
-          
-          // If the bid matches the buy now price, mark item as sold
+          // If the bid matches the buy now price, mark item as sold first
           if (item.currentbid >= item.buynow) {
             await this.markItemAsSold(item);
           }
+
+          // Broadcast the updated item to all clients
+          this.broadcastItemUpdate(item);
         } catch (error) {
           console.error("Error processing bid:", error);
           // Send error notification back to the client who made the bid
