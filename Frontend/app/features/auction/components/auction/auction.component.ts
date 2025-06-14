@@ -55,8 +55,8 @@ export class AuctionComponent implements OnInit, OnDestroy {
     this.userName = this.signinservice.token.username;
     this.errorMessage = "";
     this.displayedColumns = ['description', 'currentbid', 'buynow', 'remainingtime', 'wininguser', 'owner'];
-    this.centerLat = this.signinservice.latitude != null ? this.signinservice.latitude : 0.0;
-    this.centerLong = this.signinservice.longitude != null ? this.signinservice.longitude : 0.0;
+    this.centerLat = this.signinservice.latitude != null ? this.signinservice.latitude : 38.640026;
+    this.centerLong = this.signinservice.longitude != null ? this.signinservice.longitude : -9.155379;
     this.markers = [];
     this.showRemove = false;
     this.mapOptions = {
@@ -65,216 +65,94 @@ export class AuctionComponent implements OnInit, OnDestroy {
     };
   }
 
-ngOnInit(): void {
-  	 this.message= "Hello " + this.userName + "! Welcome to the SAR auction site.";
-
-  	 //create bid form
-  	 this.bidForm = this.formBuilder.group({
-      bid: ['', Validators.compose([Validators.required,Validators.pattern("^[0-9]*$")])]
-  	 });
-
-
-  	 // Get initial item data from the server api using http call in the auctionservice
-     this.auctionservice.getItems()
-        .subscribe({next: result => {
-          let receiveddata = result as Item[]; // cast the received data as an array of items (must be sent like that from server)
-            this.items = receiveddata;
-            console.log ("getItems Auction Component -> received the following items: ", receiveddata);
-        },
-        error: error => this.errorMessage = <any>error });
-
-     // Get initial list of logged in users for googleMaps using http call in the auctionservice
-      this.auctionservice.getUsers()
-        .subscribe({
-          next: result => {
-          let receiveddata = result as User[]; // cast the received data as an array of users (must be sent like that from server)
-            console.log("getUsers Auction Component -> received the following users: ", receiveddata);
-            // Clear existing markers first
-            this.markers = [];
-            // Create a marker for each logged-in user
-            receiveddata.forEach(user => {
-              if (user.islogged) {
-                const newMarker = new Marker(
-                  { lat: user.latitude, lng: user.longitude },
-                  user.username
-                );
-                this.markers.push(newMarker);
-              }
-            });
-          },
-          error: error => this.errorMessage = <any>error });
-
-  //subscribe to the incoming websocket events
-
-  //example how to subscribe to the server side regularly (each second) items:update event
-      const updateItemsSubscription = this.socketservice.getEvent("update:items")
-                      .subscribe(
-                        data =>{
-                          let receiveddata = data as Item[];
-                            if (this.items){
-                              this.items = receiveddata;
-                            }
-                        }
-                      );
-      this.subscriptions.push(updateItemsSubscription);
-
-  //subscribe to the new user logged in event that must be sent from the server when a client logs in 
-      console.log("Setting up subscription for new:user events");
-      const newUserSubscription = this.socketservice.getEvent("new:user")
-        .subscribe({
-          next: data => {
-            console.log("%c📱 New user logged in!", "background: #4CAF50; color: white; padding: 5px; border-radius: 5px;");
-            console.log("Username:", data.username);
-            console.log("Location:", { lat: data.latitude, lng: data.longitude });
-            
-            // Create a new marker for the logged-in user
-            const newMarker = new Marker(
-              { lat: data.latitude, lng: data.longitude },
-              data.username
-            );
-            // Add the new marker to the markers array
-            this.markers.push(newMarker);
-          },
-          error: err => {
-            console.error("Error in new:user subscription:", err);
-          }
-        });
-      this.subscriptions.push(newUserSubscription);
-
-  //subscribe to the user logged out event that must be sent from the server when a client logs out 
-      console.log("Setting up subscription for user:left events");
-      const userLeftSubscription = this.socketservice.getEvent("user:left")
-        .subscribe({
-          next: data => {
-            console.log("%c👋 User logged out!", "background: #F44336; color: white; padding: 5px; border-radius: 5px;");
-            console.log("Username:", data.username);
-            
-            // Remove the marker for the logged-out user
-            const username = data.username;
-            // Find and remove the marker for the user who left
-            this.markers = this.markers.filter(marker => marker.label !== username);
-          },
-          error: err => {
-            console.error("Error in user:left subscription:", err);
-          }
-        });
-      this.subscriptions.push(userLeftSubscription);
-      
-      // Direct connection to socket events (backup approach)
-      this.socketservice.socket.on('new:user', (data: any) => {
-        console.log("%c🔄 DIRECT: New user logged in!", "background: blue; color: white; padding: 5px; border-radius: 5px;");
-        console.log("Data:", data);
-      });
-      
-      this.socketservice.socket.on('user:left', (data: any) => {
-        console.log("%c🔄 DIRECT: User logged out!", "background: orange; color: white; padding: 5px; border-radius: 5px;");
-        console.log("Data:", data);
-      });
-
-  //subscribe to individual item update events
-      console.log("Setting up subscription for item:update events");
-      const itemUpdateSubscription = this.socketservice.getEvent("item:update")
-        .subscribe({
-          next: (updatedItem) => {
-            console.log("%c🔄 Item updated!", "background: purple; color: white; padding: 5px; border-radius: 5px;");
-            console.log("Updated item:", updatedItem);
-            
-            // Find and update the item in the local array
-            const index = this.items.findIndex(item => item.id === updatedItem.id);
-            if (index !== -1) {
-              this.items[index] = updatedItem;
-              
-              // If this is the currently selected item, update it
-              if (this.selectedItem && this.selectedItem.id === updatedItem.id) {
-                this.selectedItem = updatedItem;
-              }
-            }
-          },
-          error: (err) => {
-            console.error("Error in item:update subscription:", err);
-          }
-        });
-      this.subscriptions.push(itemUpdateSubscription);
-      
-      // Subscribe to items:update for batch updates
-      const itemsUpdateSubscription = this.socketservice.getEvent("items:update")
-        .subscribe({
-          next: (items) => {
-            console.log("%c📊 All items updated!", "background: teal; color: white; padding: 5px; border-radius: 5px;");
-            this.items = items;
-          },
-          error: (err) => {
-            console.error("Error in items:update subscription:", err);
-          }
-        });
-      this.subscriptions.push(itemsUpdateSubscription);
-      
-      // Subscribe to item sold events
-      const itemSoldSubscription = this.socketservice.getEvent("item:sold")
-        .subscribe({
-          next: (soldData) => {
-            console.log("%c💰 Item sold!", "background: gold; color: black; padding: 5px; border-radius: 5px;");
-            console.log("Sold item:", soldData);
-            
-            // Add to sold history
-            this.soldHistory.push(`${soldData.description} sold to ${soldData.winner} for $${soldData.finalPrice}`);
-            
-            // Find the item in the items array and mark as sold
-            const index = this.items.findIndex(item => item.id === soldData.itemId);
-            if (index !== -1) {
-              this.items[index].sold = true;
-            }
-            
-            // If this was the selected item, reset the bid form
-            if (this.selectedItem && this.selectedItem.id === soldData.itemId) {
-              this.showBid = false;
-              this.bidForm.reset();
-              this.message = `Item "${soldData.description}" has been sold to ${soldData.winner} for $${soldData.finalPrice}`;
-            }
-          },
-          error: (err) => {
-            console.error("Error in item:sold subscription:", err);
-          }
-        });
-      this.subscriptions.push(itemSoldSubscription);
+  ngOnInit() {
+    // Get username from the token
+    this.userName = this.signinservice.token.username;
     
-  //subscribe to a receive:message event to receive message events sent by the server
-
-  }
-
-   logout(){
-    //call the logout function in the signInService to clear the token in the browser
-    this.signinservice.logout();  // Tem que estar em primeiro para ser apagado o token e nao permitir mais reconnects pelo socket
-  	//perform any needed logout logic here
-  	this.socketservice.disconnect();
-    //navigate back to the log in page
-    this.router.navigate(['/signin']);
-  }
+    // Configure map options
+    this.mapOptions = {
+      center: { lat: 38.736946, lng: -9.142685 },
+      zoom: 10
+    };
+    
+    // Initialize empty markers array
+    this.markers = [];
+    
+    // Initialize display columns for the table
+    this.displayedColumns = ['description', 'currentbid', 'buynow', 'remainingtime', 'wininguser', 'owner'];
+    
+    // Set initial boolean values
+    this.showBid = false;
+    this.showMessage = false;
+    
+    // Initialize bid form
+    this.bidForm = this.formBuilder.group({
+      bid: ['', [Validators.required, Validators.pattern('^[0-9]*$')]]
+    });
+    
+    // Initialize message
+    this.message = '';
+    this.errorMessage = '';
+    
+    // Clear these values
+    this.destination = "";
+    this.ChatMessage = "";
+    
+    // Connect to socket server
+    this.socketservice.connect();
+    
+    // Register all event subscriptions
+    this.setupSocketSubscriptions();
+    
+    // Debug message for init complete
+    console.error("DEBUG - AuctionComponent initialized");
+}
 
   //function called when an item is selected in the view
   onRowClicked(item: Item){
-  	console.log("Selected item = ", item);
-  	this.selectedItem = item;
-  	this.showBid = true; // makes the bid form appear
+    // Debug the selected item before updating
+    console.error("DEBUG - Item clicked:", { 
+      id: item.id, 
+      description: item.description,
+      currentBid: item.currentbid,
+      buyNow: item.buynow,
+      owner: item.owner,
+      sold: item.sold
+    });
     
-    // Determine whether to show the remove button based on the requirements
-    const isOwner = item.owner === this.userName;
-    const isWinningBidder = item.sold && item.wininguser === this.userName;
+    // Store the complete item object (using object spread to create a copy)
+    this.selectedItem = { ...item };
     
-    // Show remove button if:
-    // 1. User is the owner AND item is NOT sold, OR
-    // 2. Item IS sold AND user is the winning bidder
-    this.showRemove = (isOwner && !item.sold) || isWinningBidder;
-    
-    // Show message option only when remove button is not shown and user is not the owner
-    if (!this.showRemove && !isOwner) {
-      this.showMessage = true;
-      this.destination = this.selectedItem.owner;
-    } else {
-      this.showMessage = false;
+    // Make sure the item ID is properly stored
+    if (this.selectedItem.id === undefined) {
+      console.error("WARNING: Selected item has no ID!");
+      // Try to get the ID from the item parameter directly
+      this.selectedItem.id = item.id;
+      console.error("DEBUG - Attempted to fix missing ID:", this.selectedItem.id);
     }
     
-    console.log(`Remove button visibility: ${this.showRemove ? 'visible' : 'hidden'} (Owner: ${isOwner}, Winning Bidder: ${isWinningBidder}, Item Sold: ${item.sold})`);
+    // Reset error messages
+    this.errorMessage = '';
+    
+    // Show the bid form if the item is not sold
+    if (item.sold) {
+      this.showBid = false;
+      this.message = "This item has already been sold.";
+      console.error("DEBUG - Item is already sold, not showing bid form");
+    } else {
+      this.showBid = true; // makes the bid form appear
+      console.error("DEBUG - Showing bid form for item:", this.selectedItem.id);
+    }
+    
+    if (!item.owner.localeCompare(this.userName)) {
+      this.showRemove = true;
+      this.showMessage = false;
+    }
+    else {
+      this.showRemove = false;
+      this.destination = this.selectedItem.owner;
+      this.showMessage = true;
+    }
   }
 
   //function called when a received message is selected. 
@@ -285,19 +163,28 @@ ngOnInit(): void {
   // function called when the submit bid button is pressed
    submit() {
     // Get the bid value from the form
-    const bid = Number(this.bidForm.value.bid);
-    console.log("Submitting bid:", bid);
+    const bidControl = this.bidForm.get('bid');
+    const bid = bidControl ? Number(bidControl.value) : 0;
     
     // Validate that we have a selected item and a valid bid value
     if (!this.selectedItem) {
       this.errorMessage = "No item selected";
+      console.error("DEBUG - No item selected for bidding");
       return;
     }
     
     if (isNaN(bid) || bid <= 0) {
       this.errorMessage = "Please enter a valid bid amount";
+      console.error("DEBUG - Invalid bid amount:", bid);
       return;
     }
+    
+    // Debug check - make sure item has an ID
+    console.error("DEBUG - Bidding on item:", { 
+      id: this.selectedItem.id,
+      description: this.selectedItem.description, 
+      currentBid: this.selectedItem.currentbid 
+    });
     
     // Emit the send:bid event with the item_id and bid
     this.socketservice.sendEvent('send:bid', {
@@ -305,22 +192,13 @@ ngOnInit(): void {
       bid: bid
     });
     
+    console.error("DEBUG - Sent bid event with data:", { 
+      item_id: this.selectedItem.id, 
+      bid: bid 
+    });
+    
     // Reset the form
     this.bidForm.reset();
-    this.message = `Bid of ${bid} submitted for ${this.selectedItem.description}`;
-    
-    // Subscribe to bid error events
-    const bidErrorSubscription = this.socketservice.getEvent("bid:error")
-      .subscribe({
-        next: (error) => {
-          console.error("Bid error:", error);
-          this.errorMessage = error.message || "Failed to process bid";
-        },
-        error: (err) => {
-          console.error("Error subscribing to bid errors:", err);
-        }
-      });
-    this.subscriptions.push(bidErrorSubscription);
   }
   //function called when the user presses the send message button
   sendMessage(){
@@ -334,34 +212,34 @@ ngOnInit(): void {
 
    //function called when the buy now button is pressed.
    buyNow() {
-     // Check if we have a selected item
+     // Validate that we have a selected item
      if (!this.selectedItem) {
        this.errorMessage = "No item selected";
+       console.error("DEBUG - No item selected for buy now");
        return;
      }
      
-     console.log("Buy now for item:", this.selectedItem.id);
+     console.error("DEBUG - Buy now request for item:", { 
+       id: this.selectedItem.id,
+       description: this.selectedItem.description,
+       buyNowPrice: this.selectedItem.buynow
+     });
      
-     // Emit the buy:now event with the item_id
+     // Emit buy:now event with the item id
      this.socketservice.sendEvent('buy:now', {
        item_id: this.selectedItem.id
      });
      
-     this.message = `Buy now requested for ${this.selectedItem.description}`;
+     console.error("DEBUG - Sent buy:now event with data:", { 
+       item_id: this.selectedItem.id
+     });
      
-     // Subscribe to buy now error events
-     const buyNowErrorSubscription = this.socketservice.getEvent("buynow:error")
-       .subscribe({
-         next: (error) => {
-           console.error("Buy now error:", error);
-           this.errorMessage = error.message || "Failed to process buy now request";
-         },
-         error: (err) => {
-           console.error("Error subscribing to buy now errors:", err);
-         }
-       });
-     this.subscriptions.push(buyNowErrorSubscription);
-   }
+     // Provide feedback to the user
+     this.message = `Buy now request sent for ${this.selectedItem.description}`;
+     
+     // Reset bid form
+     this.bidForm.reset();
+  }
 //function called when the remove item button is pressed.
   removeItem() {
     if (!this.selectedItem) {
@@ -461,4 +339,140 @@ ngOnInit(): void {
     this.subscriptions.forEach(subscription => subscription.unsubscribe());
   }
 
+  /**
+   * Set up all socket event subscriptions
+   */
+  private setupSocketSubscriptions() {
+    //subscribe to the server side regularly (each second) items:update event
+    const updateItemsSubscription = this.socketservice.getEvent("update:items")
+                    .subscribe(
+                      data =>{
+                        let receiveddata = data as Item[];
+                          if (this.items){
+                            this.items = receiveddata;
+                          }
+                      }
+                    );
+    this.subscriptions.push(updateItemsSubscription);
+
+    //subscribe to the new user logged in event that must be sent from the server when a client logs in 
+        const newUserSubscription = this.socketservice.getEvent("new:user")
+          .subscribe({
+            next: data => {
+              // Check if this user already has a marker
+              const existingMarkerIndex = this.markers.findIndex(marker => marker.label === data.username);
+              
+              if (existingMarkerIndex === -1) {
+                // Only add a new marker if one doesn't already exist for this user
+                const newMarker = new Marker(
+                  { lat: data.latitude, lng: data.longitude },
+                  data.username
+                );
+                this.markers.push(newMarker);
+              }
+            },
+            error: err => {
+              console.error("Error in new:user subscription:", err);
+            }
+          });
+        this.subscriptions.push(newUserSubscription);
+
+    //subscribe to the user logged out event that must be sent from the server when a client logs out 
+        const userLeftSubscription = this.socketservice.getEvent("user:left")
+          .subscribe({
+            next: data => {
+              // Remove the marker for the logged-out user
+              const username = data.username;
+              // Find and remove the marker for the user who left
+              this.markers = this.markers.filter(marker => marker.label !== username);
+            },
+            error: err => {
+              console.error("Error in user:left subscription:", err);
+            }
+          });
+        this.subscriptions.push(userLeftSubscription);
+        
+    //subscribe to individual item update events
+        const itemUpdateSubscription = this.socketservice.getEvent("item:update")
+          .subscribe({
+            next: (updatedItem) => {
+              // Find and update the item in the local array
+              const index = this.items.findIndex(item => item.id === updatedItem.id);
+              if (index !== -1) {
+                this.items[index] = updatedItem;
+                
+                // If this is the currently selected item, update it
+                if (this.selectedItem && this.selectedItem.id === updatedItem.id) {
+                  this.selectedItem = updatedItem;
+                }
+              }
+            },
+            error: (err) => {
+              console.error("Error in item:update subscription:", err);
+            }
+          });
+        this.subscriptions.push(itemUpdateSubscription);
+        
+        // Subscribe to items:update for batch updates
+        const itemsUpdateSubscription = this.socketservice.getEvent("items:update")
+          .subscribe({
+            next: (items) => {
+              this.items = items;
+            },
+            error: (err) => {
+              console.error("Error in items:update subscription:", err);
+            }
+          });
+        this.subscriptions.push(itemsUpdateSubscription);
+        
+        // Subscribe to item sold events
+        const itemSoldSubscription = this.socketservice.getEvent("item:sold")
+          .subscribe({
+            next: (soldData) => {
+              // Debug log for item sold event
+              console.error("DEBUG - Received item:sold event:", soldData);
+              
+              // Add to sold history
+              this.soldHistory.push(`${soldData.description} sold to ${soldData.winner} for $${soldData.finalPrice}`);
+              
+              // Find the item in the items array and mark as sold
+              const index = this.items.findIndex(item => item.id === soldData.itemId);
+              if (index !== -1) {
+                this.items[index].sold = true;
+                console.error("DEBUG - Marked item as sold in local array:", this.items[index]);
+              } else {
+                console.error("DEBUG - Could not find item in local array:", soldData.itemId);
+              }
+              
+              // If this was the selected item, reset the bid form
+              if (this.selectedItem && this.selectedItem.id === soldData.itemId) {
+                this.showBid = false;
+                this.bidForm.reset();
+                this.message = `Item "${soldData.description}" has been sold to ${soldData.winner} for $${soldData.finalPrice}`;
+                console.error("DEBUG - Reset bid form for sold item");
+              }
+            },
+            error: (err) => {
+              console.error("Error in item:sold subscription:", err);
+            }
+          });
+        this.subscriptions.push(itemSoldSubscription);
+  }
+  
+  /**
+   * Handles user logout
+   * This method calls the SigninService logout method and redirects to login page
+   */
+  logout() {
+    // Disconnect from WebSocket server to prevent reconnection attempts
+    this.socketservice.disconnect();
+    
+    // Call the logout function in the SigninService to clear the token
+    this.signinservice.logout();
+    
+    // Navigate to the login page
+    this.router.navigate(['/signin']);
+    
+    console.error("DEBUG - User logged out");
+  }
 }

@@ -58,7 +58,7 @@
                 <ng-container matColumnDef="currentbid">
                   <th mat-header-cell *matHeaderCellDef>Current bid</th>
                   <td mat-cell *matCellDef="let item" class="price-cell">
-                    <mat-chip-option color="primary" selected>{{item.currentbid | currency}}</mat-chip-option>
+                    <mat-chip color="primary" selected>{{item.currentbid | currency}}</mat-chip>
                   </td>
                 </ng-container>
 
@@ -66,7 +66,7 @@
                 <ng-container matColumnDef="buynow">
                   <th mat-header-cell *matHeaderCellDef>Buy Now</th>
                   <td mat-cell *matCellDef="let item" class="price-cell">
-                    <mat-chip-option color="accent" selected>{{item.buynow | currency}}</mat-chip-option>
+                    <mat-chip color="accent" selected>{{item.buynow | currency}}</mat-chip>
                   </td>
                 </ng-container>
 
@@ -168,9 +168,9 @@
                       <mat-icon matPrefix>paid</mat-icon>
                       <span matSuffix>$</span>
                       <mat-hint *ngIf="selectedItem">Current bid: {{selectedItem.currentbid | currency}}</mat-hint>
-                      <mat-error *ngIf="bidForm.controls.bid.touched && bidForm.controls.bid.invalid">
-                        <span *ngIf="bidForm.controls.bid.errors?.required">This field is mandatory.</span>
-                        <span *ngIf="bidForm.controls.bid.errors?.pattern">This must be a positive number.</span>
+                      <mat-error *ngIf="bidForm.get('bid')?.touched && bidForm.get('bid')?.invalid">
+                        <span *ngIf="bidForm.get('bid')?.errors?.['required']">This field is mandatory.</span>
+                        <span *ngIf="bidForm.get('bid')?.errors?.['pattern']">This must be a positive number.</span>
                       </mat-error>
                     </mat-form-field>
                     

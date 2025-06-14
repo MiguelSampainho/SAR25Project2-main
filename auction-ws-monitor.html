@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auction System WebSocket Monitor</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .panel {
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+        }
+        .events-container {
+            display: flex;
+            gap: 20px;
+        }
+        .events-panel {
+            flex: 1;
+        }
+        .events {
+            height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #f9f9f9;
+            font-family: monospace;
+        }
+        .event-item {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .event-item.outgoing {
+            background-color: #e6f7ff;
+        }
+        .event-item.incoming {
+            background-color: #f6ffed;
+        }
+        .event-item.send-bid {
+            background-color: #fff0f6;
+        }
+        .event-item.buy-now {
+            background-color: #fffbe6;
+        }
+        .event-item.item-sold {
+            background-color: #f6ffed;
+            font-weight: bold;
+        }
+        .controls {
+            margin-top: 15px;
+        }
+        input, button, select {
+            padding: 8px;
+            margin: 5px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 3px;
+            margin-right: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .token-input {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .status {
+            color: #777;
+            font-style: italic;
+        }
+        .status.connected {
+            color: green;
+        }
+        .status.disconnected {
+            color: red;
+        }
+        .clear-btn {
+            background: #f44336;
+        }
+        .clear-btn:hover {
+            background: #d32f2f;
+        }
+        .bidding-simulator {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        pre {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        .event-counter {
+            font-weight: bold;
+            color: #555;
+            margin-left: 10px;
+        }
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .help-text {
+            color: #777;
+            font-style: italic;
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel">
+            <h1>Auction System WebSocket Monitor</h1>
+            <p>This tool monitors WebSocket events in real-time, with special focus on bidding and buying events.</p>
+        </div>
+        
+        <div class="panel">
+            <h2>Connection</h2>
+            <div>
+                <label for="serverUrl">Server URL:</label>
+                <input type="text" id="serverUrl" value="http://localhost:3000" style="width: 100%;">
+            </div>
+            <div>
+                <label for="token">JWT Token:</label>
+                <input type="text" id="token" placeholder="Paste your JWT token here" class="token-input">
+                <div class="help-text">You can get your token by logging in and running this in browser console: <code>console.log(localStorage.getItem('id_token'))</code></div>
+            </div>
+            <div>
+                <button id="connectBtn">Connect</button>
+                <button id="disconnectBtn">Disconnect</button>
+            </div>
+            <div class="status disconnected" id="connectionStatus">Disconnected</div>
+        </div>
+        
+        <div class="events-container">
+            <div class="panel events-panel">
+                <h2>Bid Events <span class="event-counter" id="bidEventCounter">(0)</span></h2>
+                <div class="events" id="bidEventsLog"></div>
+                <div class="controls">
+                    <button id="clearBidEventsBtn" class="clear-btn">Clear Bid Events</button>
+                </div>
+            </div>
+            
+            <div class="panel events-panel">
+                <h2>Buy Now Events <span class="event-counter" id="buyEventCounter">(0)</span></h2>
+                <div class="events" id="buyEventsLog"></div>
+                <div class="controls">
+                    <button id="clearBuyEventsBtn" class="clear-btn">Clear Buy Events</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Item Sold Events <span class="event-counter" id="soldEventCounter">(0)</span></h2>
+            <div class="events" id="soldEventsLog"></div>
+            <div class="controls">
+                <button id="clearSoldEventsBtn" class="clear-btn">Clear Sold Events</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Bidding Simulator</h2>
+            <div class="bidding-simulator">
+                <div class="form-group">
+                    <label for="itemId">Item ID:</label>
+                    <input type="text" id="itemId" placeholder="Enter item ID">
+                </div>
+                <div class="form-group">
+                    <label for="bidAmount">Bid Amount:</label>
+                    <input type="number" id="bidAmount" placeholder="Enter bid amount" min="1">
+                </div>
+            </div>
+            <div class="btn-container">
+                <button id="sendBidBtn">Send Bid</button>
+                <button id="buyNowBtn">Buy Now</button>
+            </div>
+            <div class="help-text">
+                You can find item IDs by inspecting network requests in your browser's developer tools, or by examining the browser console when selecting an item.
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>All WebSocket Events <span class="event-counter" id="allEventCounter">(0)</span></h2>
+            <div class="events" id="allEventsLog"></div>
+            <div class="controls">
+                <button id="clearAllEventsBtn" class="clear-btn">Clear All Events</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Debugging Tips</h2>
+            <ol>
+                <li>Make sure your server is running correctly and WebSocket is enabled</li>
+                <li>Check that you're using a valid JWT token from a logged-in user</li>
+                <li>If events aren't being captured, try refreshing the page and reconnecting</li>
+                <li>Check your browser console for any connection errors</li>
+                <li>Verify that the item ID you're using for bidding exists in the database</li>
+            </ol>
+            
+            <h3>Common Issues</h3>
+            <ul>
+                <li><strong>No 'send:bid' events:</strong> Check that your frontend is correctly sending the event with item_id</li>
+                <li><strong>No 'item:sold' events:</strong> Verify the server is emitting this event when items are sold</li>
+                <li><strong>Authentication errors:</strong> Make sure your token is valid and not expired</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const serverUrlInput = document.getElementById('serverUrl');
+        const tokenInput = document.getElementById('token');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        
+        const bidEventsLog = document.getElementById('bidEventsLog');
+        const buyEventsLog = document.getElementById('buyEventsLog');
+        const soldEventsLog = document.getElementById('soldEventsLog');
+        const allEventsLog = document.getElementById('allEventsLog');
+        
+        const clearBidEventsBtn = document.getElementById('clearBidEventsBtn');
+        const clearBuyEventsBtn = document.getElementById('clearBuyEventsBtn');
+        const clearSoldEventsBtn = document.getElementById('clearSoldEventsBtn');
+        const clearAllEventsBtn = document.getElementById('clearAllEventsBtn');
+        
+        const bidEventCounter = document.getElementById('bidEventCounter');
+        const buyEventCounter = document.getElementById('buyEventCounter');
+        const soldEventCounter = document.getElementById('soldEventCounter');
+        const allEventCounter = document.getElementById('allEventCounter');
+        
+        const itemIdInput = document.getElementById('itemId');
+        const bidAmountInput = document.getElementById('bidAmount');
+        const sendBidBtn = document.getElementById('sendBidBtn');
+        const buyNowBtn = document.getElementById('buyNowBtn');
+
+        // Counters
+        let bidEvents = 0;
+        let buyEvents = 0;
+        let soldEvents = 0;
+        let allEvents = 0;
+
+        // Socket.IO instance
+        let socket = null;
+
+        // Event handlers
+        function updateCounter(counterElement, count) {
+            counterElement.textContent = `(${count})`;
+        }
+
+        // Connect to Socket.IO server
+        connectBtn.addEventListener('click', function() {
+            if (socket) {
+                logEvent('Already connected', 'all', 'system');
+                return;
+            }
+
+            const serverUrl = serverUrlInput.value.trim();
+            const token = tokenInput.value.trim();
+
+            if (!token) {
+                alert('Please enter a JWT token');
+                return;
+            }
+
+            try {
+                socket = io(serverUrl, {
+                    query: { token: token },
+                    reconnection: true,
+                    transports: ['websocket']
+                });
+
+                socket.on('connect', () => {
+                    connectionStatus.textContent = 'Connected';
+                    connectionStatus.className = 'status connected';
+                    logEvent('Connected to server', 'all', 'system');
+                    
+                    // Notify server of user authentication (common in auction systems)
+                    socket.emit('user:authenticated');
+                });
+
+                socket.on('connect_error', (error) => {
+                    connectionStatus.textContent = `Connection error: ${error.message}`;
+                    connectionStatus.className = 'status disconnected';
+                    logEvent(`Connection error: ${error.message}`, 'all', 'system');
+                    socket = null;
+                });
+
+                socket.on('disconnect', (reason) => {
+                    connectionStatus.textContent = `Disconnected: ${reason}`;
+                    connectionStatus.className = 'status disconnected';
+                    logEvent(`Disconnected: ${reason}`, 'all', 'system');
+                    socket = null;
+                });
+
+                // Special event listeners
+                socket.on('send:bid', (data) => {
+                    bidEvents++;
+                    updateCounter(bidEventCounter, bidEvents);
+                    logEvent(`send:bid: ${JSON.stringify(data, null, 2)}`, 'bid', 'send-bid');
+                });
+                
+                socket.on('bid:error', (data) => {
+                    bidEvents++;
+                    updateCounter(bidEventCounter, bidEvents);
+                    logEvent(`bid:error: ${JSON.stringify(data, null, 2)}`, 'bid', 'send-bid');
+                });
+                
+                socket.on('buy:now', (data) => {
+                    buyEvents++;
+                    updateCounter(buyEventCounter, buyEvents);
+                    logEvent(`buy:now: ${JSON.stringify(data, null, 2)}`, 'buy', 'buy-now');
+                });
+                
+                socket.on('buynow:error', (data) => {
+                    buyEvents++;
+                    updateCounter(buyEventCounter, buyEvents);
+                    logEvent(`buynow:error: ${JSON.stringify(data, null, 2)}`, 'buy', 'buy-now');
+                });
+                
+                socket.on('item:sold', (data) => {
+                    soldEvents++;
+                    updateCounter(soldEventCounter, soldEvents);
+                    logEvent(`item:sold: ${JSON.stringify(data, null, 2)}`, 'sold', 'item-sold');
+                });
+
+                // Listen for all events
+                socket.onAny((eventName, ...args) => {
+                    allEvents++;
+                    updateCounter(allEventCounter, allEvents);
+                    
+                    // Don't duplicate special events in the all events log
+                    if (!['send:bid', 'bid:error', 'buy:now', 'buynow:error', 'item:sold'].includes(eventName)) {
+                        logEvent(`${eventName}: ${JSON.stringify(args, null, 2)}`, 'all', 'incoming');
+                    }
+                });
+
+            } catch (error) {
+                alert(`Error connecting to Socket.IO server: ${error.message}`);
+                logEvent(`Error: ${error.message}`, 'all', 'system');
+            }
+        });
+
+        // Disconnect from Socket.IO server
+        disconnectBtn.addEventListener('click', function() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.className = 'status disconnected';
+                logEvent('Manually disconnected', 'all', 'system');
+            } else {
+                logEvent('Not connected', 'all', 'system');
+            }
+        });
+
+        // Send bid
+        sendBidBtn.addEventListener('click', function() {
+            if (!socket) {
+                alert('Please connect to the server first');
+                return;
+            }
+
+            const itemId = itemIdInput.value.trim();
+            const bidAmount = parseInt(bidAmountInput.value);
+
+            if (!itemId) {
+                alert('Please enter an item ID');
+                return;
+            }
+
+            if (isNaN(bidAmount) || bidAmount <= 0) {
+                alert('Please enter a valid bid amount');
+                return;
+            }
+
+            const payload = {
+                item_id: itemId,
+                bid: bidAmount
+            };
+
+            socket.emit('send:bid', payload);
+            logEvent(`Sent send:bid: ${JSON.stringify(payload, null, 2)}`, 'bid', 'outgoing');
+            logEvent(`Sent send:bid: ${JSON.stringify(payload, null, 2)}`, 'all', 'outgoing');
+        });
+
+        // Buy now
+        buyNowBtn.addEventListener('click', function() {
+            if (!socket) {
+                alert('Please connect to the server first');
+                return;
+            }
+
+            const itemId = itemIdInput.value.trim();
+
+            if (!itemId) {
+                alert('Please enter an item ID');
+                return;
+            }
+
+            const payload = {
+                item_id: itemId
+            };
+
+            socket.emit('buy:now', payload);
+            logEvent(`Sent buy:now: ${JSON.stringify(payload, null, 2)}`, 'buy', 'outgoing');
+            logEvent(`Sent buy:now: ${JSON.stringify(payload, null, 2)}`, 'all', 'outgoing');
+        });
+
+        // Clear events
+        clearBidEventsBtn.addEventListener('click', function() {
+            bidEventsLog.innerHTML = '';
+            bidEvents = 0;
+            updateCounter(bidEventCounter, bidEvents);
+        });
+
+        clearBuyEventsBtn.addEventListener('click', function() {
+            buyEventsLog.innerHTML = '';
+            buyEvents = 0;
+            updateCounter(buyEventCounter, buyEvents);
+        });
+
+        clearSoldEventsBtn.addEventListener('click', function() {
+            soldEventsLog.innerHTML = '';
+            soldEvents = 0;
+            updateCounter(soldEventCounter, soldEvents);
+        });
+
+        clearAllEventsBtn.addEventListener('click', function() {
+            allEventsLog.innerHTML = '';
+            allEvents = 0;
+            updateCounter(allEventCounter, allEvents);
+        });
+
+        // Helper function to log events
+        function logEvent(message, logType, eventType) {
+            const eventItem = document.createElement('div');
+            eventItem.className = `event-item ${eventType}`;
+            
+            const timestamp = document.createElement('span');
+            timestamp.textContent = `[${new Date().toLocaleTimeString()}] `;
+            timestamp.style.fontWeight = 'bold';
+            
+            const content = document.createElement('span');
+            content.textContent = message;
+            
+            eventItem.appendChild(timestamp);
+            eventItem.appendChild(content);
+            
+            // Add to appropriate log
+            switch(logType) {
+                case 'bid':
+                    bidEventsLog.appendChild(eventItem);
+                    bidEventsLog.scrollTop = bidEventsLog.scrollHeight;
+                    break;
+                case 'buy':
+                    buyEventsLog.appendChild(eventItem);
+                    buyEventsLog.scrollTop = buyEventsLog.scrollHeight;
+                    break;
+                case 'sold':
+                    soldEventsLog.appendChild(eventItem);
+                    soldEventsLog.scrollTop = soldEventsLog.scrollHeight;
+                    break;
+                case 'all':
+                    allEventsLog.appendChild(eventItem);
+                    allEventsLog.scrollTop = allEventsLog.scrollHeight;
+                    break;
+            }
+        }
+
+        // Check for token in localStorage
+        window.addEventListener('DOMContentLoaded', () => {
+            const localToken = localStorage.getItem('id_token');
+            if (localToken) {
+                tokenInput.value = localToken;
+                logEvent('Found token in localStorage', 'all', 'system');
+            }
+        });
+    </script>
+</body>
+</html>

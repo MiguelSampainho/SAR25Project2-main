@@ -38,7 +38,6 @@ class SocketService {
       }
     });
 
-    console.log('Socket service initialized');
     this.setupSocketEvents();
     this.startAuctionTimer();
   }
@@ -51,29 +50,56 @@ class SocketService {
 
     this.io.on('connection', (socket: Socket) => {
       const username = socket.data.decoded_token.username;
-      console.log(`${username} user connected`);
       
-      // Store client in the maps
+      // Check if the user already has a socket connection
+      const existingSocketId = this.socketIDbyUsername.get(username);
+      if (existingSocketId) {
+        // User already connected, handle this as needed
+        // If we reach here, it means the user has multiple connections
+        // We'll use the most recent one
+        // Get the old socket
+        const oldSocket = this.io?.sockets.sockets.get(existingSocketId);
+        if (oldSocket && oldSocket.id !== socket.id) {
+          // Clean up the old socket if it exists and is different
+          this.usernamebySocketID.delete(oldSocket.id);
+        }
+      }
+      
+      // Store client in the maps (overwriting any existing entry)
       this.socketIDbyUsername.set(username, socket.id);
       this.usernamebySocketID.set(socket.id, username);
 
       // Handle new user event
-      socket.on('newUser:username', (data) => {
-        console.log("newUser:username -> New user event received: ", data);
+      socket.on('newUser:username', async (_data) => {
+        const username = socket.data.decoded_token.username;
+        
+        try {
+          // Update user in database with latest connection info
+          const user = await User.findOne({ username });
+          if (user) {
+            // Make sure user is marked as logged in
+            user.islogged = true;
+            await user.save();
+          }
+        } catch (error) {
+          console.error(`Error updating user connection status for ${username}:`, error);
+        }
       });
 
       // Handle bid event
       socket.on('send:bid', async (data) => {
-        console.log("send:bid -> Received event send:bid with data = ", data);
-        
         try {
           const username = socket.data.decoded_token.username;
           const { item_id, bid } = data;
+          
+          // DEBUG: Log the received bid data
+          console.error("DEBUG - Received bid:", { username, item_id, bid }); // DEBUG message, can be removed later
           
           // Find the item in the database
           const item = await Item.findOne({ id: item_id });
           
           if (!item) {
+            console.error("DEBUG - Item not found:", { item_id, query_result: "null" }); // DEBUG message, can be removed later
             throw new Error(`Item with ID ${item_id} not found`);
           }
           
@@ -94,37 +120,34 @@ class SocketService {
           
           // Update the item with the new bid
           item.currentbid = bid;
-          
-          // Set the winning user and ensure it's valid
-          if (username && username.trim() !== '') {
-            item.wininguser = username.trim();
-          } else {
-            console.warn(`Warning: Empty username in bid for item ${item_id}`);
-          }
-          
-          // Log the current winning user for debugging
-          console.log(`Setting winning user for item ${item_id} to: "${item.wininguser}"`);
+          item.wininguser = username;
           
           // Save the updated item
           await item.save();
           
-          console.log(`Bid accepted: ${username} bid ${bid} on item ${item_id}`);
-          
-          // Log item details for debugging
-          this.logItemDetails(item);
-          
-          // Broadcast the updated item to all clients
+          // Broadcast the item update to all clients
           this.broadcastItemUpdate(item);
           
-          // If the bid matches or exceeds the buy now price, mark item as sold
+          // If the bid matches the buy now price, mark item as sold
           if (item.currentbid >= item.buynow) {
+            console.error("DEBUG - Bid meets buy now price, marking as sold:", {
+              item_id: item.id,
+              bid: item.currentbid,
+              buyNow: item.buynow
+            });
             await this.markItemAsSold(item);
           }
           
-          // Broadcast the updated list of all items to all clients
-          await this.broadcastItemsUpdate();
+          // Also send a specific event back to the bidder confirming the bid was successful
+          socket.emit('bid:success', {
+            item_id: item.id,
+            bid: bid,
+            message: `Your bid of $${bid} was successful.`
+          });
         } catch (error) {
-          console.error("Error processing bid:", error);
+          // DEBUG: This error handling can be simplified in production
+          console.error("DEBUG - Error processing bid:", error); // DEBUG message, can be removed later
+          
           // Send error notification back to the client who made the bid
           socket.emit('bid:error', { 
             message: error instanceof Error ? error.message : 'Unknown error processing bid'
@@ -132,23 +155,20 @@ class SocketService {
         }
       });
 
-      // Handle message event
-      socket.on('send:message', (chat) => {
-        console.log("send:message received with -> ", chat);
-      });
-
-      // Handle buy now event
+      // Handle buy now event 
       socket.on('buy:now', async (data) => {
-        console.log("buy:now -> Received event buy:now with data = ", data);
-        
         try {
           const username = socket.data.decoded_token.username;
           const { item_id } = data;
+          
+          // DEBUG: Log the buy now request
+          console.error("DEBUG - Received buy now:", { username, item_id }); // DEBUG message, can be removed later
           
           // Find the item in the database
           const item = await Item.findOne({ id: item_id });
           
           if (!item) {
+            console.error("DEBUG - Item not found for buy now:", { item_id }); // DEBUG message, can be removed later
             throw new Error(`Item with ID ${item_id} not found`);
           }
           
@@ -162,75 +182,57 @@ class SocketService {
             throw new Error('You cannot buy your own item');
           }
           
-          // Set current bid to buy now price
+          // Update the item - set current bid to buy now price
           item.currentbid = item.buynow;
+          item.wininguser = username;
           
-          // Ensure username is valid and not empty before setting wininguser
-          if (username && username.trim() !== '') {
-            item.wininguser = username.trim();
-          } else {
-            console.warn(`Warning: Empty username in buy now for item ${item_id}`);
-          }
-          
-          item.remainingtime = 0;
+          // Mark as sold
           item.sold = true;
-          
-          // Log the buyer for debugging
-          console.log(`Setting buyer for item ${item_id} to: "${item.wininguser}"`);
           
           // Save the updated item
           await item.save();
           
-          console.log(`Buy now accepted: ${username} purchased item ${item_id} for ${item.buynow}`);
+          // Log the purchase for debugging
+          console.error("DEBUG - Item purchased with Buy Now:", { item_id, username, price: item.buynow });
           
-          // Log item details for debugging
-          this.logItemDetails(item);
-          
-          // Broadcast the item sold event
+          // Broadcast the item update to all clients
           if (this.io) {
-            // Ensure there's always a valid username for the winner
-            let winner = 'Unknown buyer';
-            
-            // First check the item's winning user
-            if (item.wininguser && item.wininguser.trim() !== '') {
-              winner = item.wininguser.trim();
-            } 
-            // Fall back to the username from the socket
-            else if (username && username.trim() !== '') {
-              winner = username.trim();
-            }
-            
-            console.log(`Final winner for buy now on item ${item.id}: "${winner}"`);
-            
+            this.io.emit('item:update', item);
+          
+            // Broadcast the item sold event
             this.io.emit('item:sold', {
               itemId: item.id,
               description: item.description,
-              finalPrice: item.buynow,
-              winner: winner
+              winner: username,
+              finalPrice: item.buynow
             });
-            
-            console.log(`Buy now successful: Item ${item.id} sold to ${winner} for ${item.buynow}`);
+              
+            // Broadcast to the room
+            this.io.emit('new:chat', {
+              sender: 'System',
+              destination: 'all',
+              message: `${username} has purchased "${item.description}" for $${item.buynow}.`
+            });
+          } else {
+            console.error("DEBUG - Cannot emit events: io is null");
           }
-          
-          // Broadcast the updated item to all clients
-          this.broadcastItemUpdate(item);
-          
-          // Broadcast the updated list of all items
-          await this.broadcastItemsUpdate();
-          
         } catch (error) {
           console.error("Error processing buy now:", error);
           // Send error notification back to the client
           socket.emit('buynow:error', { 
-            message: error instanceof Error ? error.message : 'Unknown error processing buy now request'
+            message: error instanceof Error ? error.message : 'Unknown error processing buy now'
           });
         }
+      });
+      
+      // Handle message event
+      socket.on('send:message', (_chat) => {
+        // Process the message
       });
 
       // Handle disconnection
       socket.on('disconnect', async () => {
         const username = this.usernamebySocketID.get(socket.id);
-        console.log(`User disconnected: ${username}`);
         
         if (username) {
           // Update user's logged in status in the database
@@ -239,7 +241,6 @@ class SocketService {
             if (user) {
               user.islogged = false;
               await user.save();
-              console.log(`User ${username} marked as logged out in database`);
               
               // Broadcast user logout to all clients
               this.userLoggedOutBroadcast(username);
@@ -266,37 +267,14 @@ class SocketService {
         // Find all unsold items
         const unsoldItems = await Item.find({ sold: false });
         
-        // Track if any items need to be marked as sold
-        let itemsSoldInThisUpdate = false;
-        
         // Process each unsold item
         for (const item of unsoldItems) {
-          // Decrement remaining time by 1 second (1000 ms)
-          item.remainingtime = Math.max(0, item.remainingtime - 1000);
+          // Decrement remaining time by 1 second
+          item.remainingtime = Math.max(0, item.remainingtime - 1);
           
           // Check if the item should be marked as sold
           if (item.remainingtime === 0 && !item.sold) {
-            // Debug logging for better troubleshooting
-            console.log(`Item ${item.id} time expired, checking winning user...`);
-            console.log(`Current winning user before final check: "${item.wininguser}"`);
-            
-            // Mark the item as sold
             item.sold = true;
-            itemsSoldInThisUpdate = true;
-            
-            // Ensure we have the most accurate winning user information
-            // Double-check if there's a winning user and it's not empty or just whitespace
-            let winner = 'No bidder';
-            
-            if (item.wininguser && item.wininguser.trim() !== '') {
-              winner = item.wininguser.trim();
-              console.log(`Valid winning user found for item ${item.id}: "${winner}"`);
-            } else {
-              console.log(`No valid winning user found for item ${item.id}, using default: "No bidder"`);
-              
-              // Log detailed item information for debugging
-              this.logItemDetails(item);
-            }
             
             // Emit item:sold event with item data
             if (this.io) {
@@ -304,10 +282,8 @@ class SocketService {
                 itemId: item.id,
                 description: item.description,
                 finalPrice: item.currentbid,
-                winner: winner
+                winner: item.wininguser
               });
-              
-              console.log(`Auction ended: Item ${item.id} sold to ${winner} for ${item.currentbid}`);
             }
           }
         }
@@ -315,13 +291,7 @@ class SocketService {
         // Save all changes to the database in a bulk operation if there are items to update
         if (unsoldItems.length > 0) {
           // Use Promise.all to save all items concurrently
-          await Promise.all(unsoldItems.map(item => {
-            // For additional debugging, log each item that's about to be saved
-            if (item.remainingtime === 0 && item.sold) {
-              console.log(`Saving sold item ${item.id}, winning user: "${item.wininguser}"`);
-            }
-            return item.save();
-          }));
+          await Promise.all(unsoldItems.map(item => item.save()));
           
           // Query the database again for the complete list of all items
           const allItems = await Item.find({});
@@ -330,14 +300,11 @@ class SocketService {
           if (this.io) {
             this.io.emit('items:update', allItems);
           }
-          
-          // Log status update
-          console.log(`Updated ${unsoldItems.length} items, ${itemsSoldInThisUpdate ? 'some items were sold' : 'no items sold'}`);
         }
       } catch (error) {
         console.error('Error in auction timer:', error);
       }
-    }, 1000); // Run every second
+    }, 1000);
   }
 
   /**
@@ -355,7 +322,6 @@ class SocketService {
       
       // Broadcast to all connected clients
       this.io.emit('new:user', userInfo);
-      console.log(`Broadcasting new logged-in user: ${user.username}`);
     }
   }
 
@@ -364,7 +330,6 @@ class SocketService {
    * @param username The username of the logged out user
    */
   public userLoggedOutBroadcast(username: string): void {
-    console.log(`Broadcasting user logout: ${username}`);
     if (this.io) {
       // Broadcast to all connected clients
       this.io.emit('user:left', { username: username });
@@ -380,47 +345,9 @@ class SocketService {
     }
   }
 
-  /**
-   * Process a bid on an item
-   * @param itemId The ID of the item being bid on
-   * @param username The username of the bidder
-   * @param bidAmount The bid amount
-   * @returns The updated item document or null if the bid was invalid
+  /* This processBid method is redundant since the logic is already implemented directly in 
+   * the send:bid event handler. Removing to eliminate duplication.
    */
-  private async processBid(itemId: number, username: string, bidAmount: number): Promise<IItem | null> {
-    // Find the item by ID
-    const item = await Item.findOne({ id: itemId });
-    
-    if (!item) {
-      throw new Error(`Item with ID ${itemId} not found`);
-    }
-
-    // Check if item is sold
-    if (item.sold) {
-      throw new Error('This item has already been sold');
-    }
-
-    // Check if the bidder is the owner
-    if (item.owner === username) {
-      throw new Error('You cannot bid on your own item');
-    }
-
-    // Check if bid amount is greater than current bid
-    if (bidAmount <= item.currentbid) {
-      throw new Error(`Bid amount must be greater than the current bid of ${item.currentbid}`);
-    }
-
-    // Update the item with the new bid
-    item.currentbid = bidAmount;
-    item.wininguser = username;
-    
-    // Save the updated item
-    await item.save();
-    
-    console.log(`Bid accepted: ${username} bid ${bidAmount} on item ${itemId}`);
-    
-    return item;
-  }
 
   /**
    * Broadcast an item update to all connected clients
@@ -429,7 +356,6 @@ class SocketService {
   private broadcastItemUpdate(item: IItem): void {
     if (this.io) {
       this.io.emit('item:update', item);
-      console.log(`Broadcasting item update for item ID ${item.id}`);
     }
   }
 
@@ -438,43 +364,36 @@ class SocketService {
    * @param item The item to mark as sold
    */
   private async markItemAsSold(item: IItem): Promise<void> {
-    // Set sold to true and remainingtime to 0
     item.sold = true;
-    item.remainingtime = 0;
-    
-    // Make sure we have a valid winning user
-    if (!item.wininguser || item.wininguser.trim() === '') {
-      console.warn(`Warning: Item ${item.id} is being marked as sold with no winning user`);
-    }
-    
-    // Log item details before saving
-    console.log("Marking item as sold - before save:");
-    this.logItemDetails(item);
-    
-    // Save the updated item
     await item.save();
     
-    // Determine the winner with robust validation
-    let winner = 'No bidder';
-    
-    if (item.wininguser && item.wininguser.trim() !== '') {
-      winner = item.wininguser.trim();
-      console.log(`Final winner determination for item ${item.id}: "${winner}"`);
-    } else {
-      console.warn(`No valid winning user found for item ${item.id}, using default: "No bidder"`);
-    }
+    console.error("DEBUG - Marking item as sold:", { 
+      itemId: item.id, 
+      description: item.description, 
+      winner: item.wininguser,
+      finalPrice: item.currentbid
+    });
     
     if (this.io) {
+      // First update the item
+      this.io.emit('item:update', item);
+      
+      // Then emit the sold event
       this.io.emit('item:sold', {
         itemId: item.id,
         description: item.description,
         finalPrice: item.currentbid,
-        winner: winner
+        winner: item.wininguser || 'Unknown'
       });
       
-      console.log(`Item ${item.id} sold to ${winner} for ${item.currentbid}`);
+      // Also broadcast a system message
+      this.io.emit('new:chat', {
+        sender: 'System',
+        destination: 'all',
+        message: `Item "${item.description}" has been sold to ${item.wininguser || 'Unknown'} for $${item.currentbid}.`
+      });
     } else {
-      console.warn('Socket.io instance not initialized, cannot broadcast item sold event');
+      console.error("DEBUG - Cannot emit events: io is null");
     }
   }
 
@@ -490,12 +409,10 @@ class SocketService {
       
       if (this.io) {
         this.io.emit('items:update', items);
-        console.log(`Broadcasting items update with ${items.length} items to all clients`);
-      } else {
-        console.warn('Socket.io instance not initialized, cannot broadcast items update');
       }
     } catch (error) {
-      console.error('Error broadcasting items update:', error);
+      // DEBUG: This error handling can be simplified in production
+      console.error('DEBUG - Error broadcasting items update:', error); // DEBUG message, can be removed later
     }
   }
 
@@ -506,7 +423,6 @@ class SocketService {
   public broadcastNewItem(item: IItem): void {
     if (this.io) {
       this.io.emit('item:new', item);
-      console.log(`Broadcasting new item: ${item.description} (ID: ${item.id})`);
       
       // Also broadcast updated items list
       this.broadcastItemsUpdate();
@@ -524,26 +440,10 @@ class SocketService {
         itemId, 
         message: `Item ${description} has been removed`
       });
-      console.log(`Broadcasting item removal: ${description} (ID: ${itemId})`);
       
       // Also broadcast updated items list
       this.broadcastItemsUpdate();
     }
-  }
-
-  /**
-   * Debug helper to log auction item details
-   * @param item The item to log
-   */
-  private logItemDetails(item: IItem): void {
-    console.log(`Item Details - ID: ${item.id}`);
-    console.log(`  Description: ${item.description}`);
-    console.log(`  Current Bid: ${item.currentbid}`);
-    console.log(`  Buy Now: ${item.buynow}`);
-    console.log(`  Winning User: "${item.wininguser}"`);
-    console.log(`  Owner: ${item.owner}`);
-    console.log(`  Sold: ${item.sold}`);
-    console.log(`  Remaining Time: ${item.remainingtime}`);
   }
 }
 

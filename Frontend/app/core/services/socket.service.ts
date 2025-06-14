@@ -23,6 +23,9 @@ export class SocketService {
    * Uses query params since that's what the backend expects
    */
   connect() {
+    // Remove all existing listeners to prevent duplications
+    this.socket.removeAllListeners();
+    
     // Disconnect first to ensure clean reconnection
     if (this.socket.ioSocket.connected) {
       this.socket.disconnect();
@@ -38,25 +41,20 @@ export class SocketService {
     
     // Connect with new options
     this.socket.connect();
-    console.log('Websocket connected with token', this.signInService.token.token);
     
     // Setup event handlers for connection status
     this.socket.on('connect', () => {
-      console.log('🟢 Socket.IO connected successfully');
-      
-      // Register for general debugging (will log all events)
-      this.socket.onAny((event, ...args) => {
-        console.log(`🔔 Socket event received: ${event}`, args);
-      });
+      // Tell the server who we are after connection
+      this.sendEvent('newUser:username', { username: this.signInService.token.username });
     });
     
     // Setup reconnection error handler
     this.socket.on('connect_error', (error: any) => {
-      console.error('❌ Socket connection error:', error);
+      console.error('Socket connection error:', error);
     });
     
     this.socket.on('disconnect', (reason) => {
-      console.log(`🔴 Socket disconnected: ${reason}`);
+      // Socket disconnected
     });
   }
 
@@ -73,6 +71,7 @@ export class SocketService {
    * @param Data The data to send with the event
    */
   sendEvent(EventName: string, Data: any) {
+    console.error(`DEBUG - Sending socket event: ${EventName}`, Data);
     this.socket.emit(EventName, Data);
   }
 
@@ -82,12 +81,23 @@ export class SocketService {
    * @returns Observable that emits when the event occurs
    */
   getEvent(Eventname: string): Observable<any> {
-    console.log(`Setting up listener for event: ${Eventname}`);
+    console.error(`DEBUG - Setting up listener for event: ${Eventname}`);
+    
+    // Create a simpler implementation that doesn't cause duplicate event handling
     return new Observable(observer => {
-      this.socket.on(Eventname, (data: any) => {
-        console.log(`📥 Received ${Eventname} event:`, data);
+      const handler = (data: any) => {
+        console.error(`DEBUG - Received event: ${Eventname}`, data);
         observer.next(data);
-      });
+      };
+      
+      // Add the event listener
+      this.socket.on(Eventname, handler);
+      
+      // Return cleanup function to remove listener when subscription is disposed
+      return () => {
+        console.error(`DEBUG - Removing listener for event: ${Eventname}`);
+        this.socket.off(Eventname, handler);
+      };
     });
   }
 }

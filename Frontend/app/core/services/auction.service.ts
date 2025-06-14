@@ -43,7 +43,6 @@ export class AuctionService {
    }
 
   removeItem(itemId: number) {
-    console.log("auction service removeItem -> Removing item with ID:", itemId);
     let headers = new HttpHeaders({ 'Authorization': 'Bearer ' + this.signinService.token.token });
     let options = { headers: headers };
 

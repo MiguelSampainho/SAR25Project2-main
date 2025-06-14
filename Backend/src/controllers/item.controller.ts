@@ -7,8 +7,6 @@ import socketService from '../services/socket.service';
  * Creates a new auction item with an auto-incremented ID
  */
 export const createItem = async (req: Request, res: Response): Promise<void> => {
-  console.log("NewItem -> received form submission new item");
-  
   try {
     // Extract data from request body
     const { description, currentbid, remainingtime, buynow, owner } = req.body;
@@ -39,8 +37,6 @@ export const createItem = async (req: Request, res: Response): Promise<void> => 
     
     // Return success response with created item
     res.status(201).json(savedItem);
-    
-    console.log(`Item with ID ${newId} successfully created`);
   } catch (error) {
     console.error('Error creating item:', error);
     res.status(500).json({ message: 'Server error during item creation' });
@@ -52,8 +48,6 @@ export const createItem = async (req: Request, res: Response): Promise<void> => 
  * Deletes an item from the database if the requester is the owner
  */
 export const removeItem = async (req: Request, res: Response): Promise<void> => {
-  console.log("RemoveItem -> received form submission remove item");
-  
   try {
     const { itemId } = req.body;
     const username = req.user?.username;
@@ -71,50 +65,17 @@ export const removeItem = async (req: Request, res: Response): Promise<void> => 
       return;
     }
     
-    // Authorization logic: Check if user is allowed to remove this item
-    let isAuthorized = false;
-    let authReason = '';
-    
-    // Debug log to help diagnose the issue
-    console.log(`Removal request - Item: ${itemId}, User: ${username}, ItemOwner: ${item.owner}, WinningUser: "${item.wininguser}", Sold: ${item.sold}, RemainingTime: ${item.remainingtime}`);
-    
-    // Check if the item is sold and has a winning user
-    const hasSoldWithWinner = item.sold && item.wininguser && item.wininguser.trim() !== '';
-    // Check if item has expired with no winner
-    const hasExpiredNoWinner = (item.remainingtime <= 0) && (!item.wininguser || item.wininguser.trim() === '');
-    
-    // Case 1: Owner permissions
-    if (item.owner === username) {
-      // Owner can delete their items ONLY IF:
-      // - The item is not sold yet, OR
-      // - The item is sold but has no winning user (expired with no bidder)
-      if (!hasSoldWithWinner) {
-        isAuthorized = true;
-        authReason = 'owner';
-      } else {
-        // Owner cannot delete items sold to someone else
-        authReason = 'not authorized - item sold to another user';
-      }
-    } 
-    // Case 2: Winning bidder permissions - can delete items they won
-    else if (hasSoldWithWinner && item.wininguser === username) {
-      isAuthorized = true;
-      authReason = 'winning bidder';
-    }
-    // Case 3: Any user can delete expired items with no bidder
-    else if (hasExpiredNoWinner) {
-      isAuthorized = true;
-      authReason = 'expired with no bidder (any user can remove)';
-    }
-    
-    if (!isAuthorized) {
-      res.status(403).json({ 
-        message: 'You are not authorized to remove this item. Items sold to a bidder can only be deleted by the winning bidder.'
-      });
+    // Check if the user is the owner
+    if (item.owner !== username) {
+      res.status(403).json({ message: 'You can only remove your own items' });
       return;
     }
     
-    console.log(`User ${username} authorized to delete item ${itemId} as the ${authReason}`);
+    // Check if item is already sold
+    if (item.sold) {
+      res.status(400).json({ message: 'Cannot remove an item that has been sold' });
+      return;
+    }
     
     // Remove the item
     await Item.deleteOne({ id: itemId });
@@ -123,7 +84,6 @@ export const removeItem = async (req: Request, res: Response): Promise<void> => 
     socketService.broadcastItemRemoved(itemId, item.description);
     
     res.status(200).json({ message: 'Item successfully removed' });
-    console.log(`Item with ID ${itemId} successfully removed`);
   } catch (error) {
     console.error('Error removing item:', error);
     res.status(500).json({ message: 'Server error during item removal' });
@@ -141,7 +101,6 @@ export const getItems = async (req: Request, res: Response): Promise<void> => {
     
     // Send response
     res.json(items);
-    console.log("received get Items call responded with items from database");
   } catch (error) {
     console.error('Error fetching items:', error);
     res.status(500).json({ message: 'Server error while fetching items' });
