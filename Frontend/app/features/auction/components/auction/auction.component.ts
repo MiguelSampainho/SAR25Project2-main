@@ -266,12 +266,9 @@ ngOnInit(): void {
     
     // Determine whether to show the remove button based on the requirements
     const isOwner = item.owner === this.userName;
-    const isWinningBidder = item.sold && item.wininguser === this.userName;
     
-    // Show remove button if:
-    // 1. User is the owner AND item is NOT sold, OR
-    // 2. Item IS sold AND user is the winning bidder
-    this.showRemove = (isOwner && !item.sold) || isWinningBidder;
+    // Simplified logic: Only the owner can see the remove button
+    this.showRemove = isOwner;
     
     // Show message option only when remove button is not shown and user is not the owner
     if (!this.showRemove && !isOwner) {
@@ -281,7 +278,7 @@ ngOnInit(): void {
       this.showMessage = false;
     }
     
-    console.log(`Remove button visibility: ${this.showRemove ? 'visible' : 'hidden'} (Owner: ${isOwner}, Winning Bidder: ${isWinningBidder}, Item Sold: ${item.sold})`);
+    console.log(`Remove button visibility: ${this.showRemove ? 'visible' : 'hidden'} (Owner: ${isOwner}, Item Sold: ${item.sold})`);
   }
 
   //function called when a received message is selected. 

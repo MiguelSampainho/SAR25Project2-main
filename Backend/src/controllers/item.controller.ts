@@ -49,7 +49,8 @@ export const createItem = async (req: Request, res: Response): Promise<void> => 
 
 /**
  * Remove an existing item
- * Deletes an item from the database if the requester is the owner
+ * Deletes an item from the database if the requester is the original owner
+ * Only the original owner can remove an item, regardless of its sold status
  */
 export const removeItem = async (req: Request, res: Response): Promise<void> => {
   console.log("RemoveItem -> received form submission remove item");
@@ -71,50 +72,15 @@ export const removeItem = async (req: Request, res: Response): Promise<void> => 
       return;
     }
     
-    // Authorization logic: Check if user is allowed to remove this item
-    let isAuthorized = false;
-    let authReason = '';
-    
-    // Debug log to help diagnose the issue
-    console.log(`Removal request - Item: ${itemId}, User: ${username}, ItemOwner: ${item.owner}, WinningUser: "${item.wininguser}", Sold: ${item.sold}, RemainingTime: ${item.remainingtime}`);
-    
-    // Check if the item is sold and has a winning user
-    const hasSoldWithWinner = item.sold && item.wininguser && item.wininguser.trim() !== '';
-    // Check if item has expired with no winner
-    const hasExpiredNoWinner = (item.remainingtime <= 0) && (!item.wininguser || item.wininguser.trim() === '');
-    
-    // Case 1: Owner permissions
-    if (item.owner === username) {
-      // Owner can delete their items ONLY IF:
-      // - The item is not sold yet, OR
-      // - The item is sold but has no winning user (expired with no bidder)
-      if (!hasSoldWithWinner) {
-        isAuthorized = true;
-        authReason = 'owner';
-      } else {
-        // Owner cannot delete items sold to someone else
-        authReason = 'not authorized - item sold to another user';
-      }
-    } 
-    // Case 2: Winning bidder permissions - can delete items they won
-    else if (hasSoldWithWinner && item.wininguser === username) {
-      isAuthorized = true;
-      authReason = 'winning bidder';
-    }
-    // Case 3: Any user can delete expired items with no bidder
-    else if (hasExpiredNoWinner) {
-      isAuthorized = true;
-      authReason = 'expired with no bidder (any user can remove)';
-    }
-    
-    if (!isAuthorized) {
+    // Simplified authorization logic: Only the original owner can remove an item
+    if (item.owner !== username) {
       res.status(403).json({ 
-        message: 'You are not authorized to remove this item. Items sold to a bidder can only be deleted by the winning bidder.'
+        message: 'You are not authorized to remove this item. Only the original owner can remove items.'
       });
       return;
     }
     
-    console.log(`User ${username} authorized to delete item ${itemId} as the ${authReason}`);
+    console.log(`User ${username} authorized to delete item ${itemId} as the owner`);
     
     // Remove the item
     await Item.deleteOne({ id: itemId });

@@ -56,6 +56,9 @@ class SocketService {
       // Store client in the maps
       this.socketIDbyUsername.set(username, socket.id);
       this.usernamebySocketID.set(socket.id, username);
+      
+      // Send the complete items list to the newly connected client
+      this.broadcastAllItemsUpdate();
 
       // Handle new user event
       socket.on('newUser:username', (data) => {
@@ -328,16 +331,13 @@ class SocketService {
             return item.save();
           }));
           
-          // Query the database again for the complete list of all items
-          const allItems = await Item.find({});
-          
-          // Broadcast the updated items list to all clients
+          // Broadcast the updated list of ACTIVE (unsold) items to all clients
           if (this.io) {
-            this.io.emit('items:update', allItems);
+            this.io.emit('items:update', unsoldItems);
           }
           
           // Log status update
-          console.log(`Updated ${unsoldItems.length} items, ${itemsSoldInThisUpdate ? 'some items were sold' : 'no items sold'}`);
+          console.log(`Updated and broadcasted ${unsoldItems.length} active items, ${itemsSoldInThisUpdate ? 'some items were sold' : 'no items sold'}`);
         }
       } catch (error) {
         console.error('Error in auction timer:', error);
@@ -490,17 +490,37 @@ class SocketService {
    */
   public async broadcastItemsUpdate(): Promise<void> {
     try {
-      // Get all items from database (both sold and unsold)
-      const items = await Item.find({});
+      // Get only active (unsold) items from database for efficiency
+      const activeItems = await Item.find({ sold: false });
       
       if (this.io) {
-        this.io.emit('items:update', items);
-        console.log(`Broadcasting items update with ${items.length} items to all clients`);
+        this.io.emit('items:update', activeItems);
+        console.log(`Broadcasting items update with ${activeItems.length} active items to all clients`);
       } else {
         console.warn('Socket.io instance not initialized, cannot broadcast items update');
       }
     } catch (error) {
       console.error('Error broadcasting items update:', error);
+    }
+  }
+
+  /**
+   * Broadcast all items (including sold ones) to all clients
+   * Used for initial data loading or when a complete refresh is needed
+   */
+  public async broadcastAllItemsUpdate(): Promise<void> {
+    try {
+      // Get all items from database (both sold and unsold)
+      const allItems = await Item.find({});
+      
+      if (this.io) {
+        this.io.emit('all:items:update', allItems);
+        console.log(`Broadcasting complete items list with ${allItems.length} items (including sold items) to all clients`);
+      } else {
+        console.warn('Socket.io instance not initialized, cannot broadcast all items update');
+      }
+    } catch (error) {
+      console.error('Error broadcasting all items update:', error);
     }
   }
 
