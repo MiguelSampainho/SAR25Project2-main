@@ -325,21 +325,20 @@ ngOnInit(): void {
 
    //function called when the buy now button is pressed.
    buyNow() {
-     // Validate that we have a selected item
+     // Check if we have a selected item
      if (!this.selectedItem) {
        this.errorMessage = "No item selected";
        return;
      }
      
-     console.log("Buy now request for item:", this.selectedItem.id);
+     console.log("Buy now for item:", this.selectedItem.id);
      
-     // Emit buy:now event with the item id
+     // Emit the buy:now event with the item_id
      this.socketservice.sendEvent('buy:now', {
        item_id: this.selectedItem.id
      });
      
-     // Provide feedback to the user
-     this.message = `Buy now request sent for ${this.selectedItem.description}`;
+     this.message = `Buy now requested for ${this.selectedItem.description}`;
      
      // Subscribe to buy now error events
      const buyNowErrorSubscription = this.socketservice.getEvent("buynow:error")

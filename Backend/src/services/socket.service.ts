@@ -122,6 +122,54 @@ class SocketService {
         console.log("send:message received with -> ", chat);
       });
 
+      // Handle buy now event
+      socket.on('buy:now', async (data) => {
+        console.log("buy:now -> Received event buy:now with data = ", data);
+        
+        try {
+          const username = socket.data.decoded_token.username;
+          const { item_id } = data;
+          
+          // Find the item in the database
+          const item = await Item.findOne({ id: item_id });
+          
+          if (!item) {
+            throw new Error(`Item with ID ${item_id} not found`);
+          }
+          
+          // Check if item is sold
+          if (item.sold) {
+            throw new Error('This item has already been sold');
+          }
+          
+          // Check if the buyer is the owner
+          if (item.owner === username) {
+            throw new Error('You cannot buy your own item');
+          }
+          
+          // Set current bid to buy now price
+          item.currentbid = item.buynow;
+          item.wininguser = username;
+          
+          // Save the updated item
+          await item.save();
+          
+          console.log(`Buy now accepted: ${username} purchased item ${item_id} for ${item.buynow}`);
+          
+          // Broadcast the updated item to all clients
+          this.broadcastItemUpdate(item);
+          
+          // Mark the item as sold
+          await this.markItemAsSold(item);
+        } catch (error) {
+          console.error("Error processing buy now:", error);
+          // Send error notification back to the client who made the request
+          socket.emit('buynow:error', { 
+            message: error instanceof Error ? error.message : 'Unknown error processing buy now request'
+          });
+        }
+      });
+
       // Handle disconnection
       socket.on('disconnect', async () => {
         const username = this.usernamebySocketID.get(socket.id);
