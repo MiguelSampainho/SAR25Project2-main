@@ -75,8 +75,13 @@ export const removeItem = async (req: Request, res: Response): Promise<void> => 
     let isAuthorized = false;
     let authReason = '';
     
+    // Debug log to help diagnose the issue
+    console.log(`Removal request - Item: ${itemId}, User: ${username}, ItemOwner: ${item.owner}, WinningUser: "${item.wininguser}", Sold: ${item.sold}, RemainingTime: ${item.remainingtime}`);
+    
     // Check if the item is sold and has a winning user
     const hasSoldWithWinner = item.sold && item.wininguser && item.wininguser.trim() !== '';
+    // Check if item has expired with no winner
+    const hasExpiredNoWinner = (item.remainingtime <= 0) && (!item.wininguser || item.wininguser.trim() === '');
     
     // Case 1: Owner permissions
     if (item.owner === username) {
@@ -96,10 +101,10 @@ export const removeItem = async (req: Request, res: Response): Promise<void> => 
       isAuthorized = true;
       authReason = 'winning bidder';
     }
-    // Case 3: Anyone can delete expired items with no bidder
-    else if (item.sold && (!item.wininguser || item.wininguser.trim() === '')) {
+    // Case 3: Any user can delete expired items with no bidder
+    else if (hasExpiredNoWinner) {
       isAuthorized = true;
-      authReason = 'expired with no bidder';
+      authReason = 'expired with no bidder (any user can remove)';
     }
     
     if (!isAuthorized) {
