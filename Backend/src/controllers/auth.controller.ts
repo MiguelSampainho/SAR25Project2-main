@@ -12,7 +12,7 @@ export const authenticate = async (req: Request, res: Response): Promise<void> =
   console.log('Authenticate -> Received Authentication POST');
   
   try {
-    const { username, password } = req.body;
+    const { username, password, latitude, longitude } = req.body;
     
     // Find user by username
     const user = await User.findOne({ username });
@@ -23,8 +23,21 @@ export const authenticate = async (req: Request, res: Response): Promise<void> =
       return;
     }
     
-    // Update user's logged in status
+    // Update user's logged in status and location coordinates
     user.islogged = true;
+    
+    // Update coordinates if provided
+    if (latitude !== undefined && longitude !== undefined) {
+      user.latitude = latitude;
+      user.longitude = longitude;
+      console.log(`Geolocation obtained: ${longitude} ${latitude}`);
+    } else {
+      // Use fixed values from the console log as fallback
+      user.latitude = 0.0;
+      user.longitude = 0.0;
+      console.log(`Using default geolocation: ${user.longitude} ${user.latitude}`);
+    }
+    
     await user.save();
     
     // Broadcast the user login notification

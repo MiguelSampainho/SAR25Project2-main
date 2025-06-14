@@ -71,17 +71,45 @@ export const removeItem = async (req: Request, res: Response): Promise<void> => 
       return;
     }
     
-    // Check if the user is the owner
-    if (item.owner !== username) {
-      res.status(403).json({ message: 'You can only remove your own items' });
+    // Authorization logic: Check if user is allowed to remove this item
+    let isAuthorized = false;
+    let authReason = '';
+    
+    // Check if the item is sold and has a winning user
+    const hasSoldWithWinner = item.sold && item.wininguser && item.wininguser.trim() !== '';
+    
+    // Case 1: Owner permissions
+    if (item.owner === username) {
+      // Owner can delete their items ONLY IF:
+      // - The item is not sold yet, OR
+      // - The item is sold but has no winning user (expired with no bidder)
+      if (!hasSoldWithWinner) {
+        isAuthorized = true;
+        authReason = 'owner';
+      } else {
+        // Owner cannot delete items sold to someone else
+        authReason = 'not authorized - item sold to another user';
+      }
+    } 
+    // Case 2: Winning bidder permissions - can delete items they won
+    else if (hasSoldWithWinner && item.wininguser === username) {
+      isAuthorized = true;
+      authReason = 'winning bidder';
+    }
+    // Case 3: Anyone can delete expired items with no bidder
+    else if (item.sold && (!item.wininguser || item.wininguser.trim() === '')) {
+      isAuthorized = true;
+      authReason = 'expired with no bidder';
+    }
+    
+    if (!isAuthorized) {
+      res.status(403).json({ 
+        message: 'You are not authorized to remove this item. Items sold to a bidder can only be deleted by the winning bidder.'
+      });
       return;
     }
     
-    // Check if item is already sold
-    if (item.sold) {
-      res.status(400).json({ message: 'Cannot remove an item that has been sold' });
-      return;
-    }
+    console.log(`User ${username} authorized to delete item ${itemId} as the ${authReason}`);
     
     // Remove the item
     await Item.deleteOne({ id: itemId });

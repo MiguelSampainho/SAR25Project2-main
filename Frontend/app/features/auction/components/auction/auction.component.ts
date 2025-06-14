@@ -55,8 +55,8 @@ export class AuctionComponent implements OnInit, OnDestroy {
     this.userName = this.signinservice.token.username;
     this.errorMessage = "";
     this.displayedColumns = ['description', 'currentbid', 'buynow', 'remainingtime', 'wininguser', 'owner'];
-    this.centerLat = this.signinservice.latitude != null ? this.signinservice.latitude : 38.640026;
-    this.centerLong = this.signinservice.longitude != null ? this.signinservice.longitude : -9.155379;
+    this.centerLat = this.signinservice.latitude != null ? this.signinservice.latitude : 0.0;
+    this.centerLong = this.signinservice.longitude != null ? this.signinservice.longitude : 0.0;
     this.markers = [];
     this.showRemove = false;
     this.mapOptions = {
