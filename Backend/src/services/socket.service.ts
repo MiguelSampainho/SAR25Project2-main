@@ -68,7 +68,10 @@ class SocketService {
         
         try {
           const username = socket.data.decoded_token.username;
-          const { item_id, bid } = data;
+          
+          // Accept both {item_id, bid} and {itemId, bidAmount} formats
+          const item_id = data.item_id !== undefined ? data.item_id : data.itemId;
+          const bid = data.bid !== undefined ? data.bid : data.bidAmount;
           
           // Find the item in the database
           const item = await Item.findOne({ id: item_id });
@@ -143,7 +146,9 @@ class SocketService {
         
         try {
           const username = socket.data.decoded_token.username;
-          const { item_id } = data;
+          
+          // Accept both {item_id} and {itemId} formats
+          const item_id = data.item_id !== undefined ? data.item_id : data.itemId;
           
           // Find the item in the database
           const item = await Item.findOne({ id: item_id });

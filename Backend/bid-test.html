@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Bid Test</title>
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket.IO Bid Test</h1>
+    <div>
+        <h2>Connection Status: <span id="status">Disconnected</span></h2>
+    </div>
+    <div>
+        <h2>Test Bidding</h2>
+        <div>
+            <label for="item-id">Item ID:</label>
+            <input type="number" id="item-id" value="1">
+        </div>
+        <div>
+            <label for="bid-amount">Bid Amount:</label>
+            <input type="number" id="bid-amount" value="100">
+        </div>
+        <div>
+            <button id="send-bid-snake">Send Bid (snake_case: item_id, bid)</button>
+            <button id="send-bid-camel">Send Bid (camelCase: itemId, bidAmount)</button>
+        </div>
+    </div>
+    <div>
+        <h2>Test Buy Now</h2>
+        <div>
+            <label for="buynow-item-id">Item ID:</label>
+            <input type="number" id="buynow-item-id" value="1">
+        </div>
+        <div>
+            <button id="send-buynow-snake">Buy Now (snake_case: item_id)</button>
+            <button id="send-buynow-camel">Buy Now (camelCase: itemId)</button>
+        </div>
+    </div>
+    <div>
+        <h2>Results:</h2>
+        <pre id="results"></pre>
+    </div>
+
+    <script>
+        // Get DOM elements
+        const statusEl = document.getElementById('status');
+        const itemIdEl = document.getElementById('item-id');
+        const bidAmountEl = document.getElementById('bid-amount');
+        const sendBidSnakeBtn = document.getElementById('send-bid-snake');
+        const sendBidCamelBtn = document.getElementById('send-bid-camel');
+        const buyNowItemIdEl = document.getElementById('buynow-item-id');
+        const sendBuyNowSnakeBtn = document.getElementById('send-buynow-snake');
+        const sendBuyNowCamelBtn = document.getElementById('send-buynow-camel');
+        const resultsEl = document.getElementById('results');
+
+        // Function to log results
+        function logResult(message) {
+            const timestamp = new Date().toISOString();
+            resultsEl.textContent += `[${timestamp}] ${message}\n`;
+            resultsEl.scrollTop = resultsEl.scrollHeight;
+        }
+
+        // Connect to socket server (adjust URL as needed)
+        const token = prompt('Enter your JWT token:');
+        const socket = io('http://localhost:3000', {
+            query: { token }
+        });
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            statusEl.textContent = 'Connected';
+            logResult('Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            statusEl.textContent = 'Disconnected';
+            logResult('Disconnected from server');
+        });
+
+        socket.on('item:update', (data) => {
+            logResult(`Item Update: ${JSON.stringify(data)}`);
+        });
+
+        socket.on('item:sold', (data) => {
+            logResult(`Item Sold: ${JSON.stringify(data)}`);
+        });
+
+        socket.on('bid:error', (error) => {
+            logResult(`Bid Error: ${error.message}`);
+        });
+
+        socket.on('buynow:error', (error) => {
+            logResult(`Buy Now Error: ${error.message}`);
+        });
+
+        // Button click handlers
+        sendBidSnakeBtn.addEventListener('click', () => {
+            const itemId = parseInt(itemIdEl.value, 10);
+            const bidAmount = parseInt(bidAmountEl.value, 10);
+            
+            // Using snake_case format
+            const data = { item_id: itemId, bid: bidAmount };
+            
+            logResult(`Sending bid (snake_case): ${JSON.stringify(data)}`);
+            socket.emit('send:bid', data);
+        });
+
+        sendBidCamelBtn.addEventListener('click', () => {
+            const itemId = parseInt(itemIdEl.value, 10);
+            const bidAmount = parseInt(bidAmountEl.value, 10);
+            
+            // Using camelCase format
+            const data = { itemId, bidAmount };
+            
+            logResult(`Sending bid (camelCase): ${JSON.stringify(data)}`);
+            socket.emit('send:bid', data);
+        });
+
+        sendBuyNowSnakeBtn.addEventListener('click', () => {
+            const itemId = parseInt(buyNowItemIdEl.value, 10);
+            
+            // Using snake_case format
+            const data = { item_id: itemId };
+            
+            logResult(`Sending buy now (snake_case): ${JSON.stringify(data)}`);
+            socket.emit('buy:now', data);
+        });
+
+        sendBuyNowCamelBtn.addEventListener('click', () => {
+            const itemId = parseInt(buyNowItemIdEl.value, 10);
+            
+            // Using camelCase format
+            const data = { itemId };
+            
+            logResult(`Sending buy now (camelCase): ${JSON.stringify(data)}`);
+            socket.emit('buy:now', data);
+        });
+    </script>
+</body>
+</html>
